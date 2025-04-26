@@ -21,5 +21,12 @@ RUN pip install --no-cache-dir -r base.txt && \
 # Copy project
 COPY . .
 
-# Run migrations and collect static files
-CMD ["sh", "-c", "python manage.py migrate && python manage.py collectstatic --noinput && python manage.py runserver 0.0.0.0:8000"]
+# Create entrypoint script
+RUN echo '#!/bin/bash\n\
+python manage.py migrate\n\
+python manage.py collectstatic --noinput\n\
+exec "$@"' > /app/entrypoint.sh && \
+chmod +x /app/entrypoint.sh
+
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
