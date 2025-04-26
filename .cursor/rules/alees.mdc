@@ -1,0 +1,828 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Project Structure & Technology Stack
+
+## 1. Overview
+
+This document outlines the chosen directory structure and the core technologies for the ERP system API Based. The structure aims for modularity within infrastructure components and groups application logic primarily under API versions, supporting a Test-Driven Development (TDD) approach.
+
+## 2. Project Directory Structure
+
+The project will follow this top-level structure:
+
+```
+erp_project/
+├── api/                      # API root: Contains all API versions and related app logic
+│   └── v1/                  # API Version 1
+│       ├── base_models/     # Foundational model applications (internal grouping)
+│       │   ├── __init__.py
+│       │   ├── organization/ # Example: Organization and related models
+│       │   │   ├── __init__.py
+│       │   │   ├── models.py
+│       │   │   ├── serializers.py
+│       │   │   ├── views.py
+│       │   │   ├── admin.py
+│       │   │   └── tests/
+│       │   │       ├── __init__.py
+│       │   │       ├── factories.py      # Factory-Boy factories for Organization models
+│       │   │       ├── unit/             # Unit tests (isolated logic)
+│       │   │       │   ├── __init__.py
+│       │   │       │   └── test_serializers.py # Example
+│       │   │       ├── integration/      # Integration tests (component interactions, DB access)
+│       │   │       │   ├── __init__.py
+│       │   │       │   └── test_signals.py   # Example
+│       │   │       └── api/              # API/E2E tests (HTTP requests/responses)
+│       │   │           ├── __init__.py
+│       │   │           └── test_endpoints.py # Example
+│       │   │
+│       │   ├── user/        # Example: UserProfile model (extending Django User)
+│       │   │   ├── __init__.py
+│       │   │   ├── models.py
+│       │   │   ├── serializers.py
+│       │   │   ├── views.py
+│       │   │   ├── admin.py
+│       │   │   └── tests/
+│       │   │       ├── __init__.py
+│       │   │       ├── factories.py      # Factory-Boy factories for User/Profile models
+│       │   │       ├── unit/
+│       │   │       │   └── # ... unit tests ...
+│       │   │       ├── integration/
+│       │   │       │   └── # ... integration tests ...
+│       │   │       └── api/
+│       │   │           └── # ... api tests ...
+│       │   │
+│       │   ├── common/        # Example: Shared base models like Address, Contact, Currency, etc.
+│       │   │   ├── __init__.py
+│       │   │   ├── models.py
+│       │   │   ├── serializers.py
+│       │   │   ├── views.py
+│       │   │   ├── admin.py
+│       │   │   └── tests/
+│       │   │       ├── __init__.py
+│       │   │       ├── factories.py      # Factory-Boy factories for common models
+│       │   │       ├── unit/
+│       │   │       │   └── # ... unit tests ...
+│       │   │       ├── integration/
+│       │   │       │   └── # ... integration tests ...
+│       │   │       └── api/
+│       │   │           └── # ... api tests ...
+│       │   │
+│       │   ├── urls.py      # URL routing specific to base_models endpoints
+│       │   └── apps.py      # App configuration for base_models grouping
+│       │
+│       ├── features/        # Business feature model applications (internal grouping)
+│       │   ├── __init__.py
+│       │   ├── project/     # Example: Project feature
+│       │   │   ├── __init__.py
+│       │   │   ├── models.py
+│       │   │   ├── serializers.py
+│       │   │   ├── views.py
+│       │   │   ├── admin.py
+│       │   │   └── tests/
+│       │   │       ├── __init__.py
+│       │   │       ├── factories.py      # Factory-Boy factories for Project models
+│       │   │       ├── unit/
+│       │   │       │   └── # ... unit tests ...
+│       │   │       ├── integration/
+│       │   │       │   └── # ... integration tests ...
+│       │   │       └── api/
+│       │   │           └── # ... api tests ...
+│       │   │
+│       │   ├── accounting/  # Example: Accounting feature
+│       │   │   ├── __init__.py
+│       │   │   ├── models.py
+│       │   │   ├── serializers.py
+│       │   │   ├── views.py
+│       │   │   ├── admin.py
+│       │   │   └── tests/
+│       │   │       ├── __init__.py
+│       │   │       ├── factories.py      # Factory-Boy factories for Accounting models
+│       │   │       ├── unit/
+│       │   │       │   └── # ... unit tests ...
+│       │   │       ├── integration/
+│       │   │       │   └── # ... integration tests ...
+│       │   │       └── api/
+│       │   │           └── # ... api tests ...
+│       │   │
+│       │   ├── urls.py      # URL routing specific to features endpoints
+│       │   └── apps.py      # App configuration for features grouping
+│       │
+│       ├── urls.py         # Root URL routing for v1 API (includes base_models.urls, features.urls)
+│       └── apps.py         # App configuration for api.v1
+│
+├── core/                   # Core infrastructure configurations and utilities
+│   ├── redis/             # Redis client/cache configuration logic
+│   │   ├── __init__.py
+│   │   └── config.py
+│   ├── elasticsearch/     # Elasticsearch client configuration logic
+│   │   ├── __init__.py
+│   │   └── config.py
+│   ├── celery_app/        # Celery configuration and app definition
+│   │   ├── __init__.py
+│   │   ├── app.py
+│   │   └── config.py
+│   ├── logging/           # Logging configuration setup
+│   │   ├── __init__.py
+│   │   └── config.py
+│   ├── monitoring/        # Monitoring instrumentation setup
+│   │   ├── __init__.py
+│   │   └── config.py
+│   └── utils/             # Shared, non-domain-specific utility functions/classes
+│       ├── __init__.py
+│       └── helpers.py
+│
+├── config/               # Project-level Django configuration
+│   ├── __init__.py       # Ensures celery app is loaded
+│   ├── settings/        # Django settings split by environment
+│   │   ├── __init__.py
+│   │   ├── base.py     # Base settings (INSTALLED_APPS, MIDDLEWARE, common configs)
+│   │   ├── dev.py      # Development overrides
+│   │   ├── test.py     # Testing overrides (e.g., CELERY_TASK_ALWAYS_EAGER=True)
+│   │   └── prod.py     # Production overrides
+│   ├── urls.py         # Main project URL configuration
+│   ├── asgi.py         # ASGI entry point
+│   └── wsgi.py         # WSGI entry point
+│
+├── requirements/        # Python dependencies split by environment
+│   ├── base.txt
+│   ├── dev.txt
+│   ├── test.txt
+│   └── prod.txt
+│
+├── scripts/            # Operational/utility scripts
+│   ├── setup/
+│   ├── deployment/
+│   └── maintenance/
+│
+├── docs/              # Project documentation
+│   ├── api/
+│   ├── architecture/
+│   └── deployment/
+│
+├── .env.example
+├── .gitignore
+├── docker-compose.yml # For local development environment setup
+├── Dockerfile        # For building production container images
+├── manage.py         # Django management script
+└── README.md         # Project overview and setup instructions
+```
+
+**Explanation of Key Structure Choices (Testing Emphasis):**
+
+*   **Co-located Tests:** Tests reside within the specific application/feature directory they relate to (e.g., `api/v1/base_models/organization/tests/`).
+*   **Test Type Subdirectories:** Each `tests/` directory is further subdivided into `unit/`, `integration/`, and `api/` directories. This clearly separates tests based on their scope and purpose, aligning with the TDD strategy and test pyramid.
+*   **`factories.py`:** A dedicated file within each `tests/` directory holds `factory-boy` factories for the models defined in that application/feature, making test data generation clear and reusable within that context.
+*   **`api/v1/` as Primary Container:** Remains the main container for application logic related to the V1 API.
+*   **Infrastructure & Config:** Remain separate in `core/` and `config/`.
+
+## 3. Technology Stack
+
+*(This section remains largely the same as the previous version, but explicitly lists testing tools)*
+
+*   **Programming Language:** Python (Specify version, e.g., 3.10+)
+*   **Web Framework:** Django (Specify version, e.g., 4.x)
+*   **API Framework:** Django Rest Framework (DRF)
+*   **Database:** PostgreSQL (Specify version, e.g., 14+)
+*   **Asynchronous Task Queue:** Celery (with Celery Beat for scheduling)
+*   **Message Broker (for Celery):** Redis (Specify version)
+*   **Caching Backend:** Redis (using `django-redis`)
+*   **Real-time (Chat/Notifications):** Django Channels (requires ASGI server like Daphne or Uvicorn)
+*   **Search Engine:** Elasticsearch or OpenSearch (Specify version)
+*   **Hierarchy Management:** `django-mptt`
+*   **Tagging:** `django-taggit`
+*   **Import/Export:** `django-import-export`
+*   **PDF Generation (for Export):** TBD (e.g., ReportLab, WeasyPrint)
+*   **Testing Framework:** **Pytest**
+*   **Django Test Integration:** **`pytest-django`**
+*   **Test Data Generation:** **`factory-boy`**
+*   **Mocking:** **`pytest-mock`** (using `unittest.mock`)
+*   **Test Coverage:** **`pytest-cov`**
+*   **Async Task Testing:** Celery testing utilities, **`pytest-celery`** (optional)
+*   **Time Manipulation:** **`freezegun`** (optional)
+*   **Containerization:** Docker, Docker Compose
+*   **Environment Variables:** `python-dotenv`, OS Environment Variables, `django-environ` (optional)
+*   **Authentication (API):** **JWT** (via `djangorestframework-simplejwt`) and **API Keys** (via `djangorestframework-api-key` or `django-api-key` - *specify chosen library*).
+*   **Monitoring Stack (External):** TBD (e.g., Prometheus/Grafana/Loki, Datadog, Sentry). Instrumentation: `django-prometheus`, Sentry SDK.
+*   **CI/CD:** TBD (e.g., GitHub Actions, GitLab CI, Jenkins).
+
+## 4. Key Principles
+
+*   **API First:** Design through the versioned REST API.
+*   **TDD:** Follow Test-Driven Development (Red-Green-Refactor). Write tests before/alongside code.
+*   **Asynchronous Operations:** Offload tasks to Celery.
+*   **Configuration over Code:** Use settings/environment variables.
+*   **Testing:** Comprehensive, automated testing across unit, integration, and API levels.
+*   **Security:** Apply best practices.
+*   **Modularity:** Group related code within feature directories under `api/v1/`. Separate infrastructure in `core/`.
+
+This updated structure explicitly incorporates the test organization derived from our TDD strategy discussion.
+
+
+
+# MUST follow Rules:
+ - Test-first methodology for all features.
+ - Use git version control.
+ - Comment on new code, make it short, descriptive.
+ - Keep watching terminal logs if any error.
+ - Use the stack's official documentations for best practice.
+ - Handle all type of errors with descriptive, short response.
+ - Produce the latest state from time to time.
+ - Build bash script to handle restarting the server to solve killing the server and smoothly restart the server when needed.
+ - File naming must be clear and related to main model name
+ - when you have an error in your implementation you must read the official document of the stack you use.
+
+
+# ERROR FIXING PROCESS:
+step 1: explain the error in simple term
+step 2: check the official document of related stack
+
+
+# BUILDING PROCESS:
+step 1: give a summary to what will implement
+step 2: provide a state after implementing every requirement
+
+# Github Project repo:
+https://github.com/devalees/alees.git
+
+
+# Project Management System Specification - Django Backend
+
+## 1. Introduction and Philosophy
+
+### 1.1 System Overview
+
+- Modern, cloud-based project management solution
+- **Django backend with Next.js frontend**
+- Comprehensive feature set for professional project management
+- Client portal for stakeholder engagement
+- Document management integrated at all levels
+
+### 1.2 Test-Driven Development Core Principles
+
+- Test-first methodology for all features
+- Red-Green-Refactor cycle strictly enforced
+- Minimum 80% test coverage required
+- Automated test pipeline with pre-commit hooks
+- Testing pyramid: 70% unit, 20% integration, 10% end-to-end tests
+
+## 2. System Architecture
+
+### 2.1 Overall Architecture Pattern
+
+A hybrid architecture combining microservices for core domains with a monolithic API gateway:
+
+- **Client Tier**: Implements the presentation layer with responsive web and mobile interfaces
+- **API Gateway**: Serves as a unified entry point handling cross-cutting concerns
+- **Service Layer**: Houses business logic in domain-focused microservices
+- **Data Layer**: Manages persistent storage with appropriate data technologies
+- **Integration Layer**: Facilitates connections with external systems and services
+
+**Key Benefits**:
+- Scalability: Individual components can scale independently
+- Maintainability: Domain boundaries promote focused development
+- Flexibility: Services can use appropriate technologies for specific needs
+- Resilience: System can continue partial operation if some services are down
+- Testability: Components can be tested in isolation using our test-driven approach
+
+### 2.2 Detailed Architecture Components
+
+#### 2.2.1 Client Tier
+
+- Server-side rendered web application for optimal performance and SEO
+- Progressive Web App (PWA) capabilities for offline functionality
+- Responsive design supporting desktop, tablet, and mobile views
+- Separation of presentation and business logic via API contracts
+
+#### 2.2.2 API Gateway
+
+- Centralized request routing and load balancing
+- Authentication and authorization enforcement
+- Request/response transformation and normalization
+- Rate limiting and throttling implementation
+- Caching for frequently accessed resources
+- Analytics and monitoring integration
+- API versioning management
+
+#### 2.2.3 Service Layer
+
+- User Management Service: Authentication and user profile management
+- Project Service: Project lifecycle and workflow management
+- Task Service: Task creation, assignment, and tracking
+- Document Service: Document management and version control
+- Client Portal Service: Client-specific functionality and views
+- Notification Service: Event processing and notification delivery
+- Reporting Service: Data aggregation and report generation
+- Integration Service: External system connectors and adapters
+- Chat Service: Real-time messaging and collaboration
+
+## 4. Technology Stack Changes for Django Backend
+
+### 4.1 Backend Technologies
+
+#### 4.1.1 API Framework
+
+**Django & Django REST Framework**: Modern Python web framework
+- **Usage**: Powers the backend API with robust ORM, built-in admin panel, and comprehensive REST capabilities. Provides authentication, permissions, viewsets, and serializers for rapidly building RESTful APIs with excellent security.
+- **Use Cases**:
+  - RESTful API endpoints for all core functionality
+  - User authentication and authorization
+  - CRUD operations with model-based views
+  - Admin interface for system management
+  - Background task processing
+  - File upload/download handling
+- **Official Documentation**: https://www.djangoproject.com/documentation/ and https://www.django-rest-framework.org/
+
+#### 4.1.2 API Documentation
+
+**drf-spectacular/drf-yasg**: API specification and documentation
+- **Usage**: Automatically generates OpenAPI/Swagger documentation from Django REST Framework views and serializers. Provides interactive API explorer and schema generation with customization options.
+- **Use Cases**:
+  - Developer onboarding documentation
+  - API contract definition and versioning
+  - Client SDK generation for multiple languages
+  - Testing API endpoints during development
+  - Third-party integration documentation
+- **Official Documentation**: https://drf-spectacular.readthedocs.io/ or https://drf-yasg.readthedocs.io/
+
+#### 4.1.3 Authentication and Authorization
+
+**Django Authentication + JWT**: Token-based authentication
+- **Usage**: Implements secure authentication using Django's built-in authentication combined with JWT tokens. Provides session-based or token-based authentication with permissions framework for fine-grained access control.
+- **Use Cases**:
+  - User login and session management
+  - API access authentication
+  - Service-to-service authentication
+  - Permission-based access control
+  - User groups and role management
+- **Official Documentation**: 
+  - https://docs.djangoproject.com/en/stable/topics/auth/
+  - https://django-rest-framework-simplejwt.readthedocs.io/
+
+**Django Permissions Framework**: Permission management
+- **Usage**: Manages access permissions through Django's built-in permission system with model-level and object-level permissions. Integrates with Django REST Framework for API access control.
+- **Use Cases**:
+  - Project-level access control
+  - Feature permissioning for different subscription tiers
+  - Multi-tenant data isolation
+  - Admin vs. client user permissions
+  - Row-level security
+- **Official Documentation**: https://docs.djangoproject.com/en/stable/topics/auth/default/#permissions-and-authorization
+
+#### 4.1.4 Data Validation and Serialization
+
+**DRF Serializers**: Data validation and serialization
+- **Usage**: Validates data using Django REST Framework serializers with automatic conversion between complex types and Python primitives. Provides field-level validation, nested serialization, and custom validation rules.
+- **Use Cases**:
+  - API request and response validation
+  - Complex data transformation
+  - Model data validation before persistence
+  - Nested relationship handling
+  - Custom field validation
+- **Official Documentation**: https://www.django-rest-framework.org/api-guide/serializers/
+
+#### 4.1.5 Database Access
+
+**Django ORM**: Object-Relational Mapping
+- **Usage**: Provides a comprehensive database abstraction layer built into Django. Offers model definition, querying, relationship management, and transaction control with database-agnostic operations.
+- **Use Cases**:
+  - Entity relationship modeling with inheritance support
+  - Complex queries with joins and aggregations
+  - Transaction management
+  - Database-agnostic development
+  - Complex filtering and annotation
+- **Official Documentation**: https://docs.djangoproject.com/en/stable/topics/db/
+
+**Django Migrations**: Database migration tool
+- **Usage**: Manages database schema evolution with version-controlled migrations built into Django. Tracks model changes and generates migration files automatically.
+- **Use Cases**:
+  - Schema versioning across environments
+  - Incremental database changes with rollback support
+  - Production database upgrades with minimal downtime
+  - Data migration during schema changes
+  - Schema state tracking
+- **Official Documentation**: https://docs.djangoproject.com/en/stable/topics/migrations/
+
+#### 4.1.6 Background Processing
+
+**Django Celery**: Distributed task queue
+- **Usage**: Integrates Celery with Django for asynchronous task execution and scheduling. Provides Django-specific configuration, result storage, and monitoring.
+- **Use Cases**:
+  - Report generation and PDF processing
+  - Email and notification delivery
+  - Data import/export operations
+  - Scheduled maintenance tasks
+  - Resource-intensive operations offloading
+- **Official Documentation**: https://docs.celeryq.dev/en/stable/django/first-steps-with-django.html
+
+#### 4.1.7 WebSocket Support
+
+**Django Channels**: WebSocket framework
+- **Usage**: Extends Django to handle WebSockets, allowing for real-time bidirectional communication. Supports ASGI servers, channel layers, and consumer patterns for handling different types of connections.
+- **Use Cases**:
+  - Live chat messaging
+  - Real-time notifications
+  - Presence management (online status)
+  - Collaborative editing
+  - Activity streams and feeds
+  - Real-time dashboard updates
+- **Official Documentation**: https://channels.readthedocs.io/
+
+### 4.2 Integration Changes
+
+#### 4.2.1 Message Broker
+
+**Django Channels with Redis**: For WebSocket support
+- **Usage**: Uses Redis as a channel layer backend for Django Channels to enable scalable WebSocket communications. Provides message persistence, pub/sub capabilities, and support for multiple server instances.
+- **Use Cases**:
+  - Real-time chat server
+  - Presence management
+  - Broadcast messaging
+  - Room-based communication
+  - Live notifications
+  - Horizontal scaling of WebSocket connections
+- **Official Documentation**: https://channels.readthedocs.io/en/stable/topics/channel_layers.html
+
+#### 4.2.2 Webhooks
+
+**Django Webhooks**: For webhook delivery
+- **Usage**: Implements webhook delivery using Django views and async task execution. Provides retry logic, signature validation, and throttling for reliable event notifications.
+- **Use Cases**:
+  - External system notifications
+  - Integration with third-party services
+  - Event propagation to clients
+  - Workflow automation triggers
+  - Status change notifications
+- **Official Documentation**: Built on Django
+
+## 5. Development Guidelines for Django Backend
+
+### 5.1 Django Project Structure
+
+```
+project_root/
+├── apps/
+│   ├── users/
+│   │   ├── models.py
+│   │   ├── serializers.py
+│   │   ├── views.py
+│   │   ├── urls.py
+│   │   └── tests/
+│   ├── projects/
+│   │   ├── models.py
+│   │   ├── serializers.py
+│   │   ├── views.py
+│   │   ├── urls.py
+│   │   └── tests/
+│   └── ...
+├── core/
+│   ├── settings/
+│   │   ├── base.py
+│   │   ├── development.py
+│   │   └── production.py
+│   ├── urls.py
+│   └── asgi.py
+├── utils/
+│   ├── permissions.py
+│   ├── pagination.py
+│   └── mixins.py
+├── templates/
+├── static/
+└── manage.py
+```
+
+### 5.2 Django Model Best Practices
+
+1. **Use Abstract Base Models**
+   - Create abstract base models for common fields (timestamps, UUIDs, etc.)
+   - Example:
+   ```python
+   class TimeStampedModel(models.Model):
+       created_at = models.DateTimeField(auto_now_add=True)
+       updated_at = models.DateTimeField(auto_now=True)
+       
+       class Meta:
+           abstract = True
+   ```
+
+2. **Model Managers and QuerySets**
+   - Create custom managers for common query patterns
+   - Use QuerySets for chainable, reusable queries
+
+3. **Model Methods**
+   - Add business logic as model methods
+   - Create property methods for derived values
+
+### 5.3 Django REST Framework Implementation
+
+1. **ViewSet Design**
+   - Use ViewSets for CRUD operations
+   - Implement custom actions for non-CRUD operations
+   - Apply appropriate permission classes
+
+2. **Serializer Structure**
+   - Create nested serializers for related objects
+   - Use serializer methods for computed fields
+   - Implement validation logic in validate_* methods
+
+3. **Pagination and Filtering**
+   - Apply consistent pagination across all list views
+   - Use django-filter for complex filtering
+   - Implement search functionality
+
+### 5.4 Testing Approach
+
+1. **Model Testing**
+   - Test model constraints and validations
+   - Verify custom methods and properties
+   - Test relationships and cascading behavior
+
+2. **API Testing**
+   - Test view permissions and access control
+   - Verify serializer validation logic
+   - Test API response structure and status codes
+
+3. **Integration Testing**
+   - Test API flows across multiple endpoints
+   - Verify business process integrity
+   - Test with realistic data scenarios
+
+### 5.5 Security Considerations
+
+1. **Authentication**
+   - Use token or session authentication based on client type
+   - Implement refresh token rotation
+   - Set appropriate token lifetime
+
+2. **Authorization**
+   - Apply object-level permissions where needed
+   - Use Django's permission system consistently
+   - Test permission boundaries thoroughly
+
+3. **Data Validation**
+   - Validate all input on both client and server
+   - Apply model-level constraints
+   - Sanitize data for XSS prevention
+
+### 5.6 Performance Optimization
+
+1. **Query Optimization**
+   - Use select_related and prefetch_related to minimize queries
+   - Implement appropriate indexing strategies
+   - Monitor and optimize slow queries
+
+2. **Caching Strategy**
+   - Use Django's cache framework for frequent queries
+   - Apply view-level caching where appropriate
+   - Implement invalidation strategy
+
+3. **Database Connection Management**
+   - Use connection pooling
+   - Manage transaction scope appropriately
+   - Use bulk operations for large datasets
+
+### 5.7 Migration Management
+
+1. **Migration Strategy**
+   - Review migrations before applying
+   - Test migrations in staging environment
+   - Create data migrations when needed
+   - Consider backward compatibility
+
+2. **Running Migrations**
+   - Use deployment scripts for migration execution
+   - Have rollback plan for failed migrations
+   - Monitor migration performance for large tables
+
+### 5.8 Django Admin Customization
+
+1. **Admin for Management**
+   - Customize admin for internal management tools
+   - Implement proper permission restrictions
+   - Add custom actions for bulk operations
+
+2. **Admin Security**
+   - Restrict admin to internal networks when possible
+   - Implement strong authentication for admin access
+   - Audit admin actions
+
+
+
+# Comprehensive Project Management System Requirements
+   1. Foundation Layer
+      1.1 Organization & Team Structure
+         [ ] Organization model and management
+         [ ] Team hierarchy system
+         [ ] Extended role-based access control
+         [ ] Multi-factor authentication integration
+         [ ] Organization-based data isolation middleware
+         [ ] Team presence indicators
+         [ ] Department management
+         [ ] Cross-functional team support
+      1.2 Advanced Security Layer
+         [ ] OAuth2 implementation
+         [ ] JWT token rotation strategy
+         [ ] Rate limiting for API endpoints
+         [ ] IP-based access controls
+         [ ] Session management with Redis
+         [ ] Audit logging
+         [ ] End-to-end encryption
+         [ ] Data anonymization
+         [ ] GDPR compliance features
+         [ ] Automated security assessments
+      1.3 Core Services Infrastructure
+         [ ] Celery background task configuration
+         [ ] WebSocket setup with Django Channels
+         [ ] MinIO file storage integration
+         [ ] Elasticsearch search service
+         [ ] Multi-layer caching strategy (Redis, Memcached)
+         [ ] Message queuing system
+         [ ] Service mesh implementation
+         [ ] Load balancing configuration
+   2. Project Management Core
+      2.1 Advanced Project Framework
+         [ ] AI-assisted project templates
+         [ ] Industry-specific template libraries
+         [ ] Project lifecycle management
+         [ ] Milestone tracking
+         [ ] Project health indicators
+         [ ] Budget tracking system
+         [ ] Risk assessment metrics
+         [ ] Project analytics dashboard
+      2.2 Enhanced Task Management
+         [ ] AI-powered task estimation
+         [ ] Automated task dependencies
+         [ ] Smart task assignment
+         [ ] Kanban board implementation
+         [ ] Task prioritization system
+         [ ] Time tracking integration
+         [ ] Task templates
+         [ ] Bulk task operations
+   3. Resource Management
+      3.1 Advanced Resource Management
+         [ ] AI-powered resource allocation
+         [ ] Skill matrix implementation
+         [ ] Capacity planning tools
+         [ ] Resource conflict detection
+         [ ] Workload balancing system
+         [ ] Resource cost optimization
+         [ ] Skills gap analysis
+         [ ] Team performance metrics
+      3.2 Time Management
+         [ ] Automated time tracking
+         [ ] Approval workflows
+         [ ] Utilization reporting
+         [ ] Timesheet management
+         [ ] Overtime tracking
+         [ ] Leave management
+         [ ] Holiday calendar integration
+         [ ] Time-off requests
+   4. Document Management
+      4.1 Advanced Document System
+         [ ] Version control implementation
+         [ ] AI-powered document classification
+         [ ] Custom access control
+         [ ] Full-text search integration
+         [ ] Document workflow engine
+         [ ] Automated tagging
+         [ ] Document expiration management
+         [ ] OCR integration
+      4.2 Collaboration Features
+         [ ] Real-time document editing
+         [ ] Comment system
+         [ ] Review workflows
+         [ ] Document sharing
+         [ ] Change tracking
+         [ ] In-app video conferencing
+         [ ] Screen sharing
+         [ ] Digital whiteboard
+   5. Client Portal & Communication
+      5.1 Enhanced Client Interface
+         [ ] Client dashboard system
+         [ ] Project visibility controls
+         [ ] Document sharing interface
+         [ ] Approval workflow system
+         [ ] Client communication platform
+         [ ] Client feedback system
+         [ ] Client reporting tools
+         [ ] Service level agreement tracking
+      5.2 Communication Tools
+         [ ] In-app messaging system
+         [ ] Thread-based discussions
+         [ ] @mentions and notifications
+         [ ] Message translation
+         [ ] Rich text messaging
+         [ ] Voice messages
+         [ ] Email integration
+         [ ] Meeting scheduling
+   6. Analytics & Reporting
+      6.1 Business Intelligence
+         [ ] Custom report builder
+         [ ] Advanced data visualization
+         [ ] Predictive analytics
+         [ ] Machine learning insights
+         [ ] Real-time analytics
+         [ ] Trend analysis
+         [ ] Performance metrics
+         [ ] Custom dashboard builder
+      6.2 Advanced Analytics
+         [ ] Project health scoring
+         [ ] Resource utilization analytics
+         [ ] Cost tracking and forecasting
+         [ ] Team performance analytics
+         [ ] Client satisfaction metrics
+         [ ] ROI calculations
+         [ ] Burndown charts
+         [ ] Velocity tracking
+   7. Integration & Automation
+      7.1 External Integrations
+         [ ] Calendar system integration
+         [ ] Email service integration
+         [ ] Version control integration
+         [ ] CRM/accounting connections
+         [ ] Payment gateway integration
+         [ ] Cloud storage integration
+         [ ] Third-party API connections
+         [ ] SSO integration
+      7.2 Automation Framework
+         [ ] Visual workflow automation
+         [ ] Custom trigger system
+         [ ] Business rules engine
+         [ ] Enhanced notification system
+         [ ] Scheduled tasks
+         [ ] Conditional workflows
+         [ ] Automated reporting
+         [ ] Task automation
+   8. Quality Assurance & Testing
+      8.1 Comprehensive Testing
+         [ ] Business logic test suite
+         [ ] Integration test suite
+         [ ] E2E test implementation
+         [ ] Performance test suite
+         [ ] Security penetration testing
+         [ ] Load testing
+         [ ] API contract testing
+         [ ] Visual regression testing
+      8.2 Quality Monitoring
+      [ ] Code quality monitoring
+      [ ] Performance monitoring
+      [ ] Error tracking
+      [ ] Usage analytics
+      [ ] Security scanning
+      [ ] User behavior analytics
+      [ ] System health monitoring
+      [ ] Automated alerts
+   9. DevOps & Infrastructure
+      9.1 Advanced Infrastructure
+         [ ] CI/CD pipeline
+         [ ] Blue-green deployment
+         [ ] Infrastructure as Code
+         [ ] Container orchestration
+         [ ] Auto-scaling configuration
+         [ ] Database sharding
+         [ ] Multi-region setup
+         [ ] Disaster recovery
+      9.2 Monitoring & Logging
+         [ ] APM integration
+         [ ] Centralized logging
+         [ ] Real-time monitoring
+         [ ] Alert management
+         [ ] Performance metrics
+         [ ] Resource utilization
+         [ ] Cost optimization
+         [ ] Security monitoring
+# Implementation Guidelines
+   - Development Approach
+   - Test-Driven Development
+   - Write tests first
+   - Maintain 80% coverage minimum
+   - Regular test optimization
+   - Quality Standards
+   - Code review process
+   - Documentation requirements
+   - Performance benchmarks
+   - Security standards
+   - Release Strategy
+   - Feature flagging
+   - Staged rollouts
+   - Automated deployments
+   - Rollback procedures
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
