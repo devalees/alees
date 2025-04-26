@@ -1,0 +1,277 @@
+{
+	"info": {
+		"_postman_id": "alees-organization-type",
+		"name": "Alees - Organization Type API",
+		"description": "Collection for Organization Type endpoints in Alees ERP System",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "List Organization Types",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/v1/organization/organization-types/",
+					"host": ["{{base_url}}"],
+					"path": ["api", "v1", "organization", "organization-types", ""]
+				},
+				"description": "Retrieve a list of all organization types with optional filtering, ordering, and pagination."
+			},
+			"response": [
+				{
+					"name": "Success Response",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/organization/organization-types/"
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"body": {
+						"count": 2,
+						"next": null,
+						"previous": null,
+						"results": [
+							{
+								"name": "Company",
+								"description": "Primary legal entity or top-level organization."
+							},
+							{
+								"name": "Department",
+								"description": "A functional department within a division or company."
+							}
+						]
+					}
+				}
+			]
+		},
+		{
+			"name": "Retrieve Organization Type",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/v1/organization/organization-types/{{organization_type_name}}/",
+					"host": ["{{base_url}}"],
+					"path": ["api", "v1", "organization", "organization-types", "{{organization_type_name}}", ""],
+					"variable": [
+						{
+							"key": "organization_type_name",
+							"value": "Company",
+							"description": "The name of the organization type to retrieve"
+						}
+					]
+				},
+				"description": "Retrieve details of a specific organization type by its name."
+			},
+			"response": [
+				{
+					"name": "Success Response",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/organization/organization-types/Company/"
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"body": {
+						"name": "Company",
+						"description": "Primary legal entity or top-level organization."
+					}
+				}
+			]
+		},
+		{
+			"name": "Filter Organization Types",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/v1/organization/organization-types/?name={{filter_name}}",
+					"host": ["{{base_url}}"],
+					"path": ["api", "v1", "organization", "organization-types", ""],
+					"query": [
+						{
+							"key": "name",
+							"value": "{{filter_name}}",
+							"description": "Filter organization types by name"
+						}
+					],
+					"variable": [
+						{
+							"key": "filter_name",
+							"value": "Company",
+							"description": "The name to filter by"
+						}
+					]
+				},
+				"description": "Filter organization types by name."
+			},
+			"response": [
+				{
+					"name": "Success Response",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/organization/organization-types/?name=Company"
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"body": {
+						"count": 1,
+						"next": null,
+						"previous": null,
+						"results": [
+							{
+								"name": "Company",
+								"description": "Primary legal entity or top-level organization."
+							}
+						]
+					}
+				}
+			]
+		},
+		{
+			"name": "Order Organization Types",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/v1/organization/organization-types/?ordering={{order_by}}",
+					"host": ["{{base_url}}"],
+					"path": ["api", "v1", "organization", "organization-types", ""],
+					"query": [
+						{
+							"key": "ordering",
+							"value": "{{order_by}}",
+							"description": "Order results by field (use - for descending)"
+						}
+					],
+					"variable": [
+						{
+							"key": "order_by",
+							"value": "-name",
+							"description": "Field to order by (e.g., name, -name)"
+						}
+					]
+				},
+				"description": "Order organization types by name (ascending or descending)."
+			},
+			"response": [
+				{
+					"name": "Success Response",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/organization/organization-types/?ordering=-name"
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"body": {
+						"count": 2,
+						"next": null,
+						"previous": null,
+						"results": [
+							{
+								"name": "Department",
+								"description": "A functional department within a division or company."
+							},
+							{
+								"name": "Company",
+								"description": "Primary legal entity or top-level organization."
+							}
+						]
+					}
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		}
+	]
+} 

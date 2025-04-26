@@ -17,6 +17,7 @@ class OrganizationType(Timestamped, Auditable):
     )
 
     class Meta:
+        app_label = 'api_v1_organization'
         verbose_name = _("Organization Type")
         verbose_name_plural = _("Organization Types")
         ordering = ['name']

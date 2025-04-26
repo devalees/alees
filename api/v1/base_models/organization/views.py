@@ -1,4 +1,5 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, filters
+from django_filters.rest_framework import DjangoFilterBackend
 from .models import OrganizationType
 from .serializers import OrganizationTypeSerializer
 
@@ -12,4 +13,8 @@ class OrganizationTypeViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     search_fields = ['name', 'description']
     ordering_fields = ['name']
-    pagination_class = None  # Usually not needed for short lists 
+    ordering = ['name']  # Default ordering
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['name']  # Enable filtering by name
+    lookup_field = 'name'  # Use name as the lookup field
+    # Removed pagination_class = None to use default pagination 
