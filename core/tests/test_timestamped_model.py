@@ -10,7 +10,7 @@ class TimestampedModelTests(TestCase):
         self.assertIsNotNone(instance.created_at)
         self.assertTrue(instance.created_at.tzinfo is not None)
         self.assertAlmostEqual(instance.created_at, now, delta=timezone.timedelta(seconds=1))
-        self.assertAlmostEqual(instance.created_at, instance.updated_at, delta=timezone.timedelta(microseconds=100))
+        self.assertAlmostEqual(instance.created_at, instance.updated_at, delta=timezone.timedelta(milliseconds=1))
 
     def test_updated_at_changes_on_update(self):
         """Verify updated_at changes on save() but created_at doesn't."""

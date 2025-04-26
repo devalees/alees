@@ -1,7 +1,10 @@
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 
 app_name = 'organization'
 
+router = DefaultRouter()
+
 urlpatterns = [
-    # Add organization URLs here
+    path('', include(router.urls)),
 ] 
