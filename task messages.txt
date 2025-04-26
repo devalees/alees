@@ -1,0 +1,86 @@
+
+
+
+based on project rules and attached implementation steps file do the following:
+## 4. Final Checks
+[ ] Run the *entire* test suite (`pytest`) to check for regressions.
+[ ] Run linters (`flake8`) and formatters (`black`) on `core/models.py` and `core/tests/test_auditable_model.py`.
+[ ] Review the code, especially the `save()` method override and the middleware dependency.
+with the following MUST follow rules:
+- DON'T expand your work beyond this task
+- MUST follow the attached document literally
+- DON'T AFFECT OTHER IMPLEMENTATIONS
+- Test coverage score at least 90%
+- Follow Project Folder Structure
+- Produce the latest state from time to time briefly 
+
+
+
+- Update the implementation steps file to reflect our latest progress 
+  
+- Git Commit with proper description, and push it core branch
+
+git reset --hard HEAD
+git clean -fd
+
+
+
+
+## Testing Guidelines:-
+- Use centralized testing utilities from `src/tests/utils/`
+- NO direct imports from testing libraries
+. Test Cover rate at least 90%
+- Use `componentTestUtils.ts` for React component tests
+- Use `functionTestUtils.ts` for utility function tests
+- Use `integrationTestUtils.ts` for integration tests
+- Use `mockApi.ts` for mocking API responses
+. Follow the existing project architecture
+. Use Core Technologies stated in project rules.
+
+
+
+=== FOR IMPLEMENTATION ===
+based on project rules and implementation steps file and the following plan:
+### Phase 3: Organization Management 
+2. **Create Organization Components**
+   - [ ] Implement organization detail component
+     - File: `src/components/features/entity/organizations/OrganizationDetail.tsx`
+     - Display organization details
+     - Show related departments and teams
+     - Add actions for managing organization
+     - Ensure edit and delete buttons are present for tests
+
+## Implementation Guidelines:-
+1. Use Core Technologies stated in project rules.
+2. Reuse existing components and utilities
+3. Focus on one feature at a time
+4. Follow the existing project architecture
+5. All API endpoints @ ## API Integration Details in implementation steps file
+
+
+update the implementation steps file to reflect our progress
+run the tests to verify that the actual implementation is passed
+run npm test to verify that the actual implementation is passed
+
+git reset --hard HEAD
+git clean -fd
+git commit --no-verify -m ""
+
+
+please run global npm test to examine some failed tests
+-focus on the failing tests
+-fix one by one, then run the tests..
+-keep running the tests until all tests are passed
+-add some console logs in potential falling areas
+-All tests MUST use the centralized testing utilities and contexts, NO direct testing library imports allowed.
+
+
+RBAC - Implement first
+Entity - Implement second
+Contacts - Implement third
+Project - Implement fourth
+Time Management - Implement fifth
+Documents - Implement last
+
+
+

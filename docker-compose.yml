@@ -4,15 +4,15 @@ services:
   postgres:
     image: postgres:14
     environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-alees}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     ports:
-      - "${DB_PORT}:5432"
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d alees"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -20,7 +20,7 @@ services:
   redis:
     image: redis:7
     ports:
-      - "${REDIS_PORT}:6379"
+      - "6379:6379"
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -39,12 +39,72 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}
-      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+      - DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-config.settings.dev}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-your-secret-key-here}
+      - DATABASE_URL=postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-alees}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DEBUG=${DEBUG:-1}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery:
+    build: .
+    command: celery -A config worker -l INFO
+    volumes:
+      - .:/app
+      - /app/venv
+    environment:
+      - DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-config.settings.dev}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-your-secret-key-here}
+      - DATABASE_URL=postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-alees}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - api
+
+  celery-beat:
+    build: .
+    command: celery -A config beat -l INFO
+    volumes:
+      - .:/app
+      - /app/venv
+    environment:
+      - DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-config.settings.dev}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-your-secret-key-here}
+      - DATABASE_URL=postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-alees}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - api
+
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: pytest -v --cov=. --cov-report=term-missing --cov-data-file=/app/coverage/.coverage
+    volumes:
+      - .:/app
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.test
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-your-secret-key-here}
+      - TEST_DB_NAME=${TEST_DB_NAME:-alees_test}
+      - TEST_DB_USER=${TEST_DB_USER:-postgres}
+      - TEST_DB_PASSWORD=${TEST_DB_PASSWORD:-postgres}
+      - TEST_DB_HOST=postgres
+      - TEST_DB_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=memory://
+      - CELERY_RESULT_BACKEND=cache+memory://
+      - DEBUG=0
     depends_on:
       postgres:
         condition: service_healthy

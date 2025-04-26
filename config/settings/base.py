@@ -50,6 +50,7 @@ THIRD_PARTY_APPS = [
 ]
 
 LOCAL_APPS = [
+    'core',
     'api.v1',
 ]
 
@@ -191,4 +192,15 @@ EMAIL_HOST = env('EMAIL_HOST', default='smtp.gmail.com')
 EMAIL_PORT = env.int('EMAIL_PORT', default=587)
 EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
 EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='your-email@gmail.com')
-EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='your-app-password') 
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='your-app-password')
+
+# Feature Flags
+FEATURE_FLAGS_STORAGE = env('FEATURE_FLAGS_STORAGE', default='database')
+FEATURE_FLAGS_REDIS_URL = env('FEATURE_FLAGS_REDIS_URL', default='redis://localhost:6379/1')
+
+# Default feature flags
+FLAGS = {
+    'auth.two_factor.enabled': [{'condition': 'boolean', 'value': False}],
+    'project.new_dashboard': [{'condition': 'boolean', 'value': False}],
+    'billing.invoice_auto_generate': [{'condition': 'boolean', 'value': False}],
+} 
