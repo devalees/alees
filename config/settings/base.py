@@ -50,6 +50,7 @@ THIRD_PARTY_APPS = [
     'crum',
     'django_extensions',
     'django_countries',
+    'django_redis',
 ]
 
 LOCAL_APPS = [
@@ -200,8 +201,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            'hosts': [(env('REDIS_HOST', default='localhost'), 
-                      env.int('REDIS_PORT', default=6379))],
+            'hosts': [env('REDIS_URL', default='redis://redis:6379/0')],
         },
     },
 }
@@ -255,17 +255,36 @@ SECURE_HSTS_PRELOAD = env.bool('SECURE_HSTS_PRELOAD', default=True)
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': env('REDIS_URL', default='redis://localhost:6379/0'),
+        'LOCATION': env('REDIS_URL', default='redis://redis:6379/0'),
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'PASSWORD': env('REDIS_PASSWORD', default=''),
             'SOCKET_CONNECT_TIMEOUT': 5,
             'SOCKET_TIMEOUT': 5,
-            'RETRY_ON_TIMEOUT': True,
-            'MAX_CONNECTIONS': 1000,
-            'COMPRESSOR_CLASS': 'django_redis.compressors.zlib.ZlibCompressor',
+            'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
+        }
+    },
+    'permissions': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': env('REDIS_URL', default='redis://redis:6379/1'),
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'PASSWORD': env('REDIS_PASSWORD', default=''),
+        }
+    },
+    'api_responses': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': env('REDIS_URL', default='redis://redis:6379/2'),
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'PASSWORD': env('REDIS_PASSWORD', default=''),
         }
     }
 }
+
+# Redis Session Backend
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'default'
 
 # Logging Configuration
 LOGGING = {

@@ -67,4 +67,52 @@ LOGGING = {
             'propagate': False,
         },
     },
+}
+
+# Redis Cache Configuration for Production
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': env('REDIS_URL'),
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'PASSWORD': env('REDIS_PASSWORD'),
+            'SOCKET_CONNECT_TIMEOUT': 5,
+            'SOCKET_TIMEOUT': 5,
+            'SSL': True,
+            'SSL_CERT_REQS': 'required',
+            'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
+        }
+    },
+    'permissions': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': env('REDIS_URL'),
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'PASSWORD': env('REDIS_PASSWORD'),
+            'SSL': True,
+            'SSL_CERT_REQS': 'required',
+        }
+    },
+    'api_responses': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': env('REDIS_URL'),
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'PASSWORD': env('REDIS_PASSWORD'),
+            'SSL': True,
+            'SSL_CERT_REQS': 'required',
+        }
+    }
+}
+
+# Redis Channel Layer Configuration for Production
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [env('REDIS_URL')],
+            'ssl': True,
+        },
+    },
 } 
