@@ -1,4 +1,5 @@
 from .base import *
+import os
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
@@ -12,6 +13,22 @@ ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
 DATABASES = {
     'default': env.db('DATABASE_URL'),
 }
+
+# File Storage Configuration
+DEFAULT_FILE_STORAGE = env('DJANGO_DEFAULT_FILE_STORAGE', 
+                          default='django.core.files.storage.FileSystemStorage')
+MEDIA_ROOT = env('MEDIA_ROOT', default=os.path.join(BASE_DIR, 'media'))
+MEDIA_URL = env('MEDIA_URL', default='/media/')
+
+# File Upload Validation Settings
+MAX_UPLOAD_SIZE = env.int('MAX_UPLOAD_SIZE', default=10 * 1024 * 1024)  # 10MB
+ALLOWED_MIME_TYPES = env.list('ALLOWED_MIME_TYPES', default=[
+    'image/jpeg',
+    'image/png',
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+])
 
 # Security
 SECURE_SSL_REDIRECT = True

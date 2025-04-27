@@ -35,6 +35,7 @@ django-environ>=0.11.0,<0.12.0
 Pillow>=10.0.0,<10.1.0
 pycountry>=22.3.5,<22.4.0
 django-countries>=7.5.0,<7.6.0
+django-taggit>=4.0.0,<4.1.0
 
 # Flags
 django-flags>=5.0.0,<5.1.0
