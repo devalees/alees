@@ -1,6 +1,4 @@
-Okay, let's generate the implementation steps for the **Automation Rule Engine**. This is a complex system involving multiple models, signal handling, scheduled task integration (Celery Beat), asynchronous execution (Celery workers), condition evaluation, and action execution, plus management APIs. These steps outline the foundational setup.
 
---- START OF FILE automation_implementation_steps.md ---
 
 # Automation Rule Engine - Implementation Steps
 

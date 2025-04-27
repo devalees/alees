@@ -1,8 +1,4 @@
-Okay, let's generate the implementation steps for the core parts of the **RBAC System**, focusing on setting up the `FieldPermission` model and the basic integration points. This assumes we are using Django's built-in `User`, `Group` (as Role), and `Permission` models as the foundation.
 
-**Note:** Implementing the *full enforcement* within serializers and the `has_field_permission` check function with caching involves significant logic that will likely be refined iteratively. These steps focus on establishing the structure.
-
---- START OF FILE rbac_implementation_steps.md ---
 
 # RBAC System (Field-Level Ext) - Implementation Steps
 
