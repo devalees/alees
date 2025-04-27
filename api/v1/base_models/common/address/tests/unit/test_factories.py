@@ -2,6 +2,7 @@ import pytest
 from decimal import Decimal
 from ..factories import AddressFactory
 
+
 @pytest.mark.django_db
 class TestAddressFactory:
     """Test cases for the AddressFactory."""
@@ -20,7 +21,7 @@ class TestAddressFactory:
         assert isinstance(address.latitude, (Decimal, type(None)))
         assert isinstance(address.longitude, (Decimal, type(None)))
         assert address.custom_fields == {}
-        assert address.status == 'Active'
+        assert address.status == "Active"
 
     def test_factory_with_overrides(self):
         """Test that factory accepts field overrides."""
@@ -28,7 +29,7 @@ class TestAddressFactory:
         address = AddressFactory(
             street_address_1="123 Main St",
             custom_fields=custom_fields,
-            status="Inactive"
+            status="Inactive",
         )
         assert address.street_address_1 == "123 Main St"
         assert address.custom_fields == custom_fields
@@ -39,4 +40,6 @@ class TestAddressFactory:
         addresses = AddressFactory.create_batch(5)
         assert len(addresses) == 5
         assert all(addr.pk is not None for addr in addresses)
-        assert len(set(addr.street_address_1 for addr in addresses)) == 5  # All addresses should be unique 
+        assert (
+            len(set(addr.street_address_1 for addr in addresses)) == 5
+        )  # All addresses should be unique

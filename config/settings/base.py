@@ -54,10 +54,10 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     'core.apps.CoreConfig',
-    'api.v1.base_models.organization.apps.OrganizationConfig',
     'api.v1.base_models.common.apps.CommonConfig',
-    'api.v1.base_models.common.currency.apps.CurrencyConfig',
     'api.v1.base_models.common.address.apps.AddressConfig',
+    'api.v1.base_models.organization.apps.OrganizationConfig',
+    'api.v1.base_models.user.apps.UserConfig',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
