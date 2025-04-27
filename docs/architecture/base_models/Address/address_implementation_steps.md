@@ -21,12 +21,12 @@ This covers the model for physical addresses, its fields, factory, admin, basic 
 Stores structured physical postal addresses (street, city, state, postal code, country), supports latitude/longitude, includes status and custom fields. Referenced by other models like UserProfile, Organization, Contact, Warehouse.
 
 **Primary Location(s):**
-`api/v1/base_models/common/` (Assuming `common` app for shared entities)
+`api/v1/base_models/common/address` (Assuming `common` app for shared entities)
 
 ## 2. Prerequisites
 
 [ ] Verify prerequisite models/mixins (`Timestamped`, `Auditable`) are implemented.
-[ ] Ensure the `common` app structure exists (`api/v1/base_models/common/`).
+[ ] Ensure the `common` app structure exists (`api/v1/base_models/common/address`).
 [ ] Ensure `factory-boy` is set up. Basic User factory exists.
 [ ] **Decision:** How to handle the `country` field?
     *   Option A: Simple `CharField(max_length=2)`. Requires manual validation or choices list later.
@@ -139,7 +139,7 @@ Stores structured physical postal addresses (street, city, state, postal code, c
 
   ### 3.3 Admin Registration (`admin.py`)
 
-  [ ] Create/Update `api/v1/base_models/common/admin.py`.
+  [ ] Create/Update `api/v1/base_models/common/addressadmin.py`.
   [ ] Define `AddressAdmin`:
       ```python
       from django.contrib import admin
@@ -186,7 +186,7 @@ Stores structured physical postal addresses (street, city, state, postal code, c
   ### 3.5 Serializer Definition (`serializers.py`)
 
   [ ] **(Test First - Validation/Representation)** Write Unit/Integration Tests (`tests/unit/test_serializers.py`, `tests/integration/test_serializers.py`) for `AddressSerializer`. Test validation (country code format/choice, field lengths), representation, custom field handling.
-  [ ] Define `AddressSerializer` in `api/v1/base_models/common/serializers.py`:
+  [ ] Define `AddressSerializer` in `api/v1/base_models/common/addressserializers.py`:
       ```python
       from rest_framework import serializers
       from django_countries.serializer_fields import CountryField # If using django-countries

@@ -1,10 +1,9 @@
-from core.flags.models import Flag
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from crum import get_current_user
 
-__all__ = ['Flag', 'Timestamped', 'TestTimestampedModel', 'Auditable', 'TestAuditableModel']
+__all__ = ['Timestamped', 'Auditable', 'TestTimestampedModel', 'TestAuditableModel']
 
 class Timestamped(models.Model):
     """

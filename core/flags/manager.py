@@ -1,121 +1,100 @@
-from typing import Any, Dict, Optional
+from typing import Dict, List, Optional, Any
+from django.core.cache import cache
 from django.conf import settings
-from .state import flag_state
+from django.core.exceptions import ValidationError
 from .models import Flag
+from .state import flag_state
 
 class FeatureFlagsManager:
-    """Feature flags management system for Alees ERP."""
+    """Manager class for handling feature flags."""
     
     def __init__(self):
-        """Initialize the feature flags manager."""
         self.storage = settings.FEATURE_FLAGS_STORAGE
+        if self.storage == 'redis':
+            from django_redis import get_redis_connection
+            self.redis = get_redis_connection("default")
 
     def is_enabled(self, flag_name: str, request: Optional[Any] = None) -> bool:
-        """
-        Check if a feature flag is enabled.
-        
-        Args:
-            flag_name: The name of the feature flag
-            request: Optional request object for request-based conditions
-            
-        Returns:
-            True if the feature is enabled, False otherwise
-        """
-        return flag_state(flag_name, request=request)
+        """Check if a feature flag is enabled."""
+        return flag_state(flag_name, request)
 
-    def create_flag(self, name: str, description: str, default: bool = False) -> bool:
-        """
-        Create a new feature flag.
-        
-        Args:
-            name: The name of the feature flag
-            description: Description of the feature flag
-            default: Default state of the flag
-            
-        Returns:
-            True if successful, False otherwise
-        """
+    def create_flag(self, name: str, enabled: bool = False, description: str = "") -> bool:
+        """Create a new feature flag."""
         try:
-            Flag.objects.create(
+            # Check if flag already exists
+            if Flag.objects.filter(name=name).exists():
+                return False
+                
+            flag = Flag.objects.create(
                 name=name,
-                description=description,
-                default=default
+                enabled=enabled,
+                description=description
             )
+            
+            # Update cache/redis
+            if self.storage == 'redis':
+                self.redis.set(f"flag:{name}", '1' if enabled else '0')
+            elif self.storage == 'cache':
+                cache.set(f"flag:{name}", enabled)
+                
             return True
-        except Exception:
+        except ValidationError:
             return False
 
-    def update_flag(self, name: str, **kwargs) -> bool:
-        """
-        Update an existing feature flag.
-        
-        Args:
-            name: The name of the feature flag
-            **kwargs: Fields to update (description, default, etc.)
-            
-        Returns:
-            True if successful, False otherwise
-        """
+    def update_flag(self, name: str, enabled: bool, description: Optional[str] = None) -> bool:
+        """Update an existing feature flag."""
         try:
             flag = Flag.objects.get(name=name)
-            for key, value in kwargs.items():
-                setattr(flag, key, value)
+            flag.enabled = enabled
+            if description is not None:
+                flag.description = description
             flag.save()
+            
+            # Update cache/redis
+            if self.storage == 'redis':
+                self.redis.set(f"flag:{name}", '1' if enabled else '0')
+            elif self.storage == 'cache':
+                cache.set(f"flag:{name}", enabled)
+                
             return True
         except Flag.DoesNotExist:
             return False
 
     def delete_flag(self, name: str) -> bool:
-        """
-        Delete a feature flag.
-        
-        Args:
-            name: The name of the feature flag to delete
-            
-        Returns:
-            True if successful, False otherwise
-        """
+        """Delete a feature flag."""
         try:
             Flag.objects.get(name=name).delete()
+            
+            # Clear from cache/redis
+            if self.storage == 'redis':
+                self.redis.delete(f"flag:{name}")
+            elif self.storage == 'cache':
+                cache.delete(f"flag:{name}")
+                
             return True
         except Flag.DoesNotExist:
             return False
 
-    def get_flag(self, name: str) -> Optional[Dict[str, Any]]:
-        """
-        Get information about a feature flag.
-        
-        Args:
-            name: The name of the feature flag
-            
-        Returns:
-            Dictionary containing flag information or None if not found
-        """
+    def get_flag(self, name: str) -> Optional[Dict]:
+        """Get a feature flag's details."""
         try:
             flag = Flag.objects.get(name=name)
             return {
                 'name': flag.name,
-                'description': flag.description,
-                'default': flag.default,
-                'created': flag.created,
-                'modified': flag.modified
+                'enabled': flag.enabled,
+                'description': flag.description
             }
         except Flag.DoesNotExist:
             return None
 
-    def list_flags(self) -> Dict[str, Dict[str, Any]]:
-        """
-        List all feature flags.
-        
-        Returns:
-            Dictionary of all feature flags and their information
-        """
-        flags = {}
-        for flag in Flag.objects.all():
-            flags[flag.name] = {
-                'description': flag.description,
-                'default': flag.default,
-                'created': flag.created,
-                'modified': flag.modified
+    def list_flags(self) -> List[Dict]:
+        """List all feature flags."""
+        flags = Flag.objects.all()
+        return [
+            {
+                'name': flag.name,
+                'enabled': flag.enabled,
+                'description': flag.description
             }
-        return flags 
+            for flag in flags
+        ] 

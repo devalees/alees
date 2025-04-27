@@ -49,6 +49,7 @@ THIRD_PARTY_APPS = [
     'allauth.socialaccount',
     'crum',
     'django_extensions',
+    'django_countries',
 ]
 
 LOCAL_APPS = [
@@ -56,6 +57,7 @@ LOCAL_APPS = [
     'api.v1.base_models.organization.apps.OrganizationConfig',
     'api.v1.base_models.common.apps.CommonConfig',
     'api.v1.base_models.common.currency.apps.CurrencyConfig',
+    'api.v1.base_models.common.address.apps.AddressConfig',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
