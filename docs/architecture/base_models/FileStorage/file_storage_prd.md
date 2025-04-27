@@ -1,143 +1,125 @@
-# FileStorage Model - Product Requirements Document (PRD) - Simplified
+# FileStorage Model - Product Requirements Document (PRD)
 
 ## 1. Overview
 
-*   **Purpose**: To define a standardized model for storing metadata about files uploaded and managed within the ERP system, providing a reference linking to the actual file stored via a configured backend.
-*   **Scope**: Definition of the `FileStorage` data model holding file metadata (name, type, size, owner, storage path), basic management, custom field capability, and integration points. Excludes the specific file storage backend implementation (e.g., S3, local disk) and built-in file versioning.
-*   **Implementation**: Defined as a concrete Django Model. It **must** inherit `Timestamped`, `Auditable`, and potentially `OrganizationScoped` (if file access/visibility needs org scoping). Uses a `JSONField` for custom fields.
+*   **Purpose**: To define a standardized model for storing metadata about files uploaded and managed within the ERP system, providing a reference linking to the actual file stored via a **configured backend (supporting both local filesystem and cloud options)**.
+*   **Scope**: Definition of the `FileStorage` data model holding file metadata (name, type, size, owner, storage path), basic management, custom field capability, and integration points. Excludes specific backend implementation details and built-in file versioning.
+*   **Implementation**: Defined as a concrete Django Model. It **must** inherit `Timestamped`, `Auditable`, and `OrganizationScoped`. Uses a `JSONField` for custom fields. Relies on Django's configurable storage backend system.
 *   **Target Users**: Any user/system uploading or accessing files, Developers (linking models to files), System Administrators.
 
 ## 2. Business Requirements
 
-*   **Centralized File Reference**: Provide a single point of reference (metadata record) for every managed file within the system.
-*   **Support Diverse File Types**: Handle various document, media, and other file types needed by different modules.
-*   **Track Basic Metadata**: Store essential information like original filename, file size, MIME type, and uploader.
-*   **Foundation for Attachments**: Allow various business entities (Products, Orders, Documents, etc.) to link to stored files.
-*   **Access Control Foundation**: Provide necessary ownership/scoping information to enable permission checks for file access.
-*   **Extensibility**: Allow storing application-specific metadata about files via custom fields.
+*   **Centralized File Reference**: Provide a metadata record for every managed file.
+*   **Support Diverse File Types**: Handle various document, media, etc.
+*   **Track Basic Metadata**: Store filename, size, MIME type, uploader.
+*   **Foundation for Attachments**: Allow other entities to link to stored files.
+*   **Access Control Foundation**: Provide ownership/scoping for permission checks.
+*   **Extensibility**: Allow storing file-specific metadata via custom fields.
+*   **Storage Flexibility**: Allow deployment using either local filesystem or cloud storage via configuration.
 
 ## 3. Functional Requirements
 
 ### 3.1 `FileStorage` Model Definition
-*   **Inheritance**: Must inherit `Timestamped`, `Auditable`. **Must inherit `OrganizationScoped`** if files are tied to specific organizations for access control/visibility. *(Decision Required: Are files org-scoped? Assuming YES for this revision)*.
+*   **Inheritance**: Must inherit `Timestamped`, `Auditable`, `OrganizationScoped`.
 *   **Fields**:
-    *   `file`: (FileField) The core field managed by Django's storage backend. Stores the relative path to the actual file in the configured storage (e.g., S3 bucket path or local filesystem path). `upload_to` should generate a unique path (e.g., based on UUID or org/date structure).
-    *   `original_filename`: (CharField, max_length=255, db_index=True) The name of the file as uploaded by the user.
-    *   `file_size`: (PositiveIntegerField, null=True) Size of the file in bytes. Populated on upload.
-    *   `mime_type`: (CharField, max_length=100, blank=True, db_index=True) The detected MIME type (e.g., 'application/pdf', 'image/jpeg'). Populated on upload.
-    *   `uploaded_by`: (ForeignKey to `User`, on_delete=models.SET_NULL, null=True, related_name='uploaded_files') Link to the user who uploaded the file (uses `Auditable.created_by` but making it explicit can be useful).
-    *   `tags`: (ManyToManyField via `django-taggit` or similar, blank=True) For flexible classification.
-    *   **`custom_fields`**: (JSONField, default=dict, blank=True) Stores values for dynamically defined custom fields relevant to the file (e.g., 'document_type', 'image_resolution').
-*   **Meta**:
-    *   `verbose_name = "Stored File"`
-    *   `verbose_name_plural = "Stored Files"`
-    *   `ordering = ['-created_at']`
+    *   `file`: (FileField) Stores the **relative path** within the configured storage backend. `upload_to` generates unique path (e.g., `org_{org_id}/files/{uuid}.{ext}`).
+    *   `original_filename`: (CharField, max_length=255, db_index=True).
+    *   `file_size`: (PositiveBigIntegerField, null=True) In bytes. Populated on upload.
+    *   `mime_type`: (CharField, max_length=100, blank=True, db_index=True). Populated on upload.
+    *   `uploaded_by`: (ForeignKey to `User`, SET_NULL, null=True, related_name='uploaded_files').
+    *   `tags`: (TaggableManager, blank=True).
+    *   **`custom_fields`**: (JSONField, default=dict, blank=True).
+*   **Meta**: `verbose_name`, `plural`, `ordering`, indexes.
 *   **String Representation**: Return `original_filename`.
 *   **Properties/Methods**:
-    *   Consider adding properties like `@property def download_url(self):` which generates a temporary signed URL if using cloud storage, or a direct URL if appropriate. Logic depends heavily on the storage backend and security requirements.
+    *   `@property def filename(self): return os.path.basename(self.file.name)`
+    *   `@property def url(self):` - **Crucial:** This method should securely generate the appropriate access URL by calling `self.file.url`, which respects the configured storage backend (returning local `/media/...` or cloud pre-signed URL). Requires request context for permission checks before returning URL.
 
 ### 3.2 Custom Field Schema Definition (External Mechanism)
-*   Requirement for separate `CustomFieldDefinition` model/mechanism (possibly filtered by a 'File' context or MIME type) to define schema for file custom fields.
+*   Requires separate `CustomFieldDefinition` mechanism if custom fields are used.
 
 ### 3.3 File Operations (Handled by API Views/Services)
-*   **Upload**: API endpoint(s) required to handle file uploads. This logic will:
-    1.  Receive the file binary.
-    2.  Perform validation (file type, size limits).
-    3.  Create a `FileStorage` model instance.
-    4.  Save the file using the configured Django storage backend (which populates the `file` field path).
-    5.  Populate metadata fields (`original_filename`, `file_size`, `mime_type`, `uploaded_by`, `organization`).
-    6.  Save the `FileStorage` instance.
-    7.  Return metadata (including ID and potentially download URL) to the client.
-*   **Download/Access**: API endpoint(s) or logic required to serve files or provide access URLs. This must:
-    1.  Check permissions (based on user, role, organization scope of the `FileStorage` record, and potentially the context of the model linking *to* the file).
-    2.  Generate a secure download URL (e.g., pre-signed URL for cloud storage) or stream the file content.
-*   **Deletion**: API endpoint(s) to delete `FileStorage` records. Must also delete the actual file from the storage backend. Requires permissions. `on_delete` behavior of models linking *to* this file needs consideration (often `SET_NULL`).
-*   **Update**: Updating metadata (tags, custom fields) via API. Replacing the underlying file usually involves deleting the old `FileStorage` record and uploading a new one, unless versioning is implemented.
+*   **Upload**: API endpoint handles receiving file binary, validation (type, size), creating `FileStorage` instance (populating metadata), saving file via `instance.file.save()` (uses configured backend), saving instance, returning metadata.
+*   **Download/Access**: API endpoint/logic checks permissions (Org scope, RBAC), then generates a secure access URL using the `instance.url` property (which calls `instance.file.url`).
+*   **Deletion**: API endpoint checks permissions, deletes `FileStorage` record, and **must** call `instance.file.delete(save=False)` to remove the file from the storage backend.
+*   **Update**: API for updating metadata (`tags`, `custom_fields`). Replacing file content typically involves deleting the old record and creating a new one.
 
 ### 3.4 Validation
-*   **Upload Validation**: File type (check MIME type against allowed list), file size (check against configured limits) must be performed during the upload process (in the view/serializer).
-*   **Custom Field Validation**: Validate `custom_fields` data against schema during upload/update.
+*   Upload validation (type, size) performed in API view/serializer using configured settings.
+*   Custom field validation against schema.
 
 ### 3.5 Relationships
-*   Links *to* `User` (`uploaded_by`), `Organization` (via `OrganizationScoped`).
-*   Is linked *to* by other models needing attachments via `ForeignKey` or `ManyToManyField` (e.g., `Product.images`, `Invoice.pdf_attachment`).
+*   Links *to* `User`, `Organization`.
+*   Linked *to* by other models via FK/M2M.
 
-### 3.6 Out of Scope for this Model/PRD
-*   **File Storage Backend Implementation**: Choice and configuration of S3, local disk, etc., is a deployment/configuration concern.
-*   **File Versioning**: Requires a separate model (`FileVersion`) and logic. Treat as a separate feature/PRD.
-*   **File Content Validation**: Virus scanning, content analysis are external processes.
-*   **Detailed History**: Handled by Audit Log.
+### 3.6 Out of Scope
+*   Specific storage backend implementation details (handled by strategy/config).
+*   File Versioning (separate feature).
+*   File Content Validation (virus scan etc.).
+*   Detailed History (Audit Log).
 
 ## 4. Technical Requirements
 
+*(Largely the same as previous version, but emphasizes abstraction)*
+
 ### 4.1 Data Management
-*   Storage: `FileField` for path reference, standard fields for metadata, JSONField for custom fields. Actual file binaries stored via configured backend.
-*   Indexing: `original_filename`, `mime_type`, `uploaded_by`, `organization`. **GIN index on `custom_fields`** if querying needed.
-*   Database does *not* store file binary content directly.
+*   Storage: `FileField` stores relative path. Metadata in DB. Binaries in configured backend (local FS or cloud). Indexing on metadata. GIN index for `custom_fields` if needed.
 
 ### 4.2 Security
-*   **Access Control**: Critical. Permissions to upload, download, delete files. Access checks must consider the `FileStorage` record's scope (`organization`) and potentially the context of the object *linking* to the file. Generating secure, time-limited download URLs (e.g., pre-signed URLs) is essential for cloud storage.
-*   **Storage Security**: Secure configuration of the file storage backend (e.g., S3 bucket policies, private access).
-*   **Audit Logging**: Log file uploads, downloads (if feasible/required), deletions, and metadata changes via Audit System.
+*   **Access Control:** Application brokers access based on permissions/Org Scope *before* generating download URLs (`instance.url`).
+*   **Storage Security:** Configure backend appropriately (private buckets/folders, filesystem permissions).
+*   **Secure URLs:** Rely on `instance.file.url` to generate appropriate URLs (direct path for local, pre-signed for cloud).
+*   **Credentials:** Managed securely via Configuration Strategy.
+*   **Upload Validation:** Enforce type/size limits.
+*   **Audit Logging:** Log upload, delete, potentially controlled access events.
 
 ### 4.3 Performance
-*   Efficient metadata querying.
-*   Upload/download performance depends heavily on the storage backend, network, and file sizes.
-*   Efficient `custom_fields` querying (needs indexing).
+*   Metadata queries should be efficient. File transfer performance depends on backend/network.
 
 ### 4.4 Integration
-*   **Storage Backend**: Requires integration with a Django storage backend (e.g., `django-storages` for S3, GCS, Azure).
-*   **Primary Integration**: Serves as target for FK/M2M from other models requiring attachments.
-*   **API Endpoint**: Provide RESTful API endpoints for upload, potentially download/access URL generation, metadata retrieval/update, and deletion. Structure carefully (e.g., `/api/v1/files/upload/`, `/api/v1/files/{id}/`, `/api/v1/files/{id}/access-url/`).
-*   **Custom Field Schema Integration**: Integrates with `CustomFieldDefinition` mechanism.
+*   **Storage Backend:** Relies on configured `DEFAULT_FILE_STORAGE` and `django-storages` if using cloud. Code uses Django storage abstraction.
+*   **Primary Integration:** Target for FK/M2M.
+*   **API Endpoint:** For Upload, Metadata management, Secure URL generation/Access, Deletion.
+*   **Custom Field Integration:** With `CustomFieldDefinition` mechanism.
 
 ## 5. Non-Functional Requirements
 
-*   **Scalability**: Storage backend must scale to handle expected file volume and sizes. Metadata database must scale.
-*   **Availability**: File access must be highly available.
-*   **Durability**: File storage backend should provide high durability for stored files (e.g., S3 standard).
-*   **Consistency**: Metadata in the DB should accurately reflect the stored file.
-*   **Backup/Recovery**: Procedures must include both the database (metadata) and the file storage backend (binaries).
+*   Scalability (depends on chosen backend), Availability (depends on backend), Durability (depends on backend), Consistency (metadata vs file), Backup/Recovery (DB metadata + file backend).
 
 ## 6. Success Metrics
 
-*   Successful upload, storage, and retrieval of files.
-*   Reliable access control enforcement.
-*   Performant metadata querying and file access.
-*   Successful linkage of files to relevant business entities.
+*   Successful upload/storage/retrieval using either configured backend. Reliable access control. Performant metadata/access. Successful linking.
 
 ## 7. API Documentation Requirements
 
-*   Document `FileStorage` model fields (incl. `custom_fields`).
-*   Document API endpoints for upload, download/access, metadata management, deletion. Detail expected request formats (e.g., multipart/form-data for upload) and responses.
-*   Document validation rules (allowed types, max size).
-*   Document authentication/permission requirements, especially for file access.
-*   Document how `custom_fields` are handled.
-*   Document how to discover custom field schemas (if applicable).
+*   Document `FileStorage` model fields.
+*   Document Upload/Access/Delete API endpoints and processes. Explain validation.
+*   Document how download URLs are obtained and their nature (direct vs signed).
+*   Auth/Permission requirements.
+*   Custom fields handling.
 
 ## 8. Testing Requirements
 
-*   **Unit Tests**: Test `FileStorage` model, any custom properties/methods.
+*   **Unit Tests**: Test model, `url` property logic (mocking `file.url`).
 *   **Integration Tests**:
-    *   Requires mocking the storage backend (`override_settings(DEFAULT_FILE_STORAGE=...)`).
-    *   Test file upload API: successful upload, validation failures (type, size), metadata creation, org scoping.
-    *   Test file access/download API: permission checks (allowed/denied), URL generation (if applicable).
-    *   Test metadata update API.
-    *   Test file deletion API (verify metadata deleted and file deleted from mock storage).
-    *   Test **saving/validating `custom_fields`** during upload/update.
-*   **Security Tests**: Test access control thoroughly, attempt unauthorized access/deletion, test security of download URL generation.
+    *   **Run primarily against `FileSystemStorage`** using `override_settings` and temporary directories.
+    *   Test Upload API (success, validation failures).
+    *   Test Access/URL generation API (permission success/failure).
+    *   Test Delete API (metadata + file deletion from mock storage).
+    *   Test `custom_fields` save/validation.
+    *   **(Optional)** Separate tests using `moto` to verify S3-specific interactions if needed.
+*   **Security Tests**: Focus on access control for download URLs and deletion.
 
 ## 9. Deployment Requirements
 
-*   **Migrations**: Standard migrations for `FileStorage` table, indexes (incl. JSONField).
-*   **Storage Backend Configuration**: Configure `DEFAULT_FILE_STORAGE` and related settings (e.g., S3 bucket name, access keys, CDN) for each environment. Ensure appropriate permissions are set on the storage backend itself.
-*   **Validation Configuration**: Configure allowed MIME types and maximum file sizes.
-*   **Custom Field Schema Deployment**: Deploy `CustomFieldDefinition` mechanism.
+*   Migrations for `FileStorage`.
+*   **Configure `DEFAULT_FILE_STORAGE` and backend-specific settings (MEDIA_ROOT or Cloud Credentials/Bucket) appropriately for each environment** via environment variables/secrets management.
+*   Configure web server for serving `MEDIA_URL` if using `FileSystemStorage` in production (with access controls).
+*   Configure validation settings (size, type).
+*   Deploy `CustomFieldDefinition` mechanism.
 
 ## 10. Maintenance Requirements
 
-*   Monitor storage usage and costs. Backups (DB and file storage).
-*   Keep storage libraries (`django-storages`) updated.
-*   Manage custom field schemas.
+*   Monitor storage usage (local disk or cloud). Backups (DB + File Backend). Library updates (`django-storages`). Manage custom field schemas.
 
----
+--- END OF FILE file_storage_prd.md ---

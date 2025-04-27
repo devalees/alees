@@ -88,6 +88,7 @@ List key configuration variables expected to differ across environments:
 *   CSRF Trusted Origins (`CSRF_TRUSTED_ORIGINS`)
 *   `MEDIA_URL`, `MEDIA_ROOT` (for local dev/test file storage)
 *   `STATIC_URL`, `STATIC_ROOT`
+*   **Add CORS/CSRF:** Explicitly list `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS` as examples of environment-dependent configuration.
 
 ## 5. Process & Workflow
 

@@ -1,4 +1,3 @@
-
 # Security Strategy
 
 ## 1. Overview
@@ -55,8 +54,10 @@
     *   **Database:** Leverage database-level encryption features provided by the cloud provider (e.g., RDS encryption) or filesystem encryption on the database server.
     *   **File Storage:** Use server-side encryption features provided by the cloud storage provider (e.g., S3 SSE-S3, SSE-KMS).
     *   **Specific Fields:** For highly sensitive data within the database (e.g., certain custom fields), consider application-level encryption using libraries like `django-cryptography` (requires careful key management).
-*   **Input Validation:** Rigorously validate and sanitize all user/API input (as per `validation_strategy.md`) to prevent injection attacks (XSS, SQLi - ORM helps but validate formats/types).
-*   **File Uploads:** Validate file types and sizes. Consider virus scanning upon upload (async task). Serve user-uploaded files securely (avoid direct execution, use appropriate `Content-Type`, `Content-Disposition`).
+*   **Input Validation:** Rigorously validate and sanitize **all** user/API input (query parameters, path parameters, request bodies) using DRF serializers and validators (as per `validation_strategy.md`) to prevent injection attacks (XSS, SQLi - ORM helps but validate formats/types).
+*   **File Uploads:** Validate file types and sizes. Consider virus scanning upon upload (async task). Serve user-uploaded files securely (avoid direct execution, use appropriate `Content-Type`, `Content-Disposition`, rely on pre-signed URLs or application-brokered access).
+*   **CSRF Protection:** Ensure Django's CSRF middleware (`django.middleware.csrf.CsrfViewMiddleware`) is enabled and configured correctly, especially if session-based authentication or traditional forms are ever used alongside the API. Configure `CSRF_TRUSTED_ORIGINS` appropriately for frontend domains.
+*   **CORS Policy:** Implement a secure Cross-Origin Resource Sharing (CORS) policy using `django-cors-headers` or similar. Configure `CORS_ALLOWED_ORIGINS` (or more specific settings) restrictively to only allow trusted frontend domains to interact with the API.
 
 ## 7. Infrastructure Security (Collaboration with DevOps/Platform Team)
 
@@ -69,8 +70,8 @@
 
 *   **Audit Logging:** Ensure the `Audit Logging System` captures security-relevant events: logins (success/failure), logouts, permission/role changes, API key creation/revocation, significant data deletions, security setting changes.
 *   **Access Logs:** Log all API requests (including source IP, user agent, authenticated user/key) at the web server or load balancer level.
-*   **Monitoring Platform Integration:** Forward security-relevant logs (Audit Log, web server access logs, application error logs) to the centralized monitoring/SIEM platform.
-*   **Alerting:** Configure alerts in the monitoring platform for suspicious activities: high rate of failed logins, permission escalation attempts, errors from security components, critical vulnerabilities detected by scanners.
+*   **Monitoring Platform Integration:** Forward security-relevant logs (Audit Log, web server access logs, application error logs with potentially sensitive info filtered) to the centralized monitoring/SIEM platform.
+*   **Alerting:** Configure alerts in the monitoring platform for suspicious activities: high rate of failed logins, permission escalation attempts, errors from security components, critical vulnerabilities detected by scanners, potential credential leaks found in logs.
 
 ## 9. Incident Response (Planning)
 
@@ -87,4 +88,4 @@
 *   Identify relevant data protection regulations (e.g., GDPR, CCPA, industry-specific rules) based on user base and data processed.
 *   Ensure application design and data handling practices align with compliance requirements (e.g., data minimization, user consent, data subject access requests).
 
---- END OF FILE security_strategy.md ---
+--- END OF FILE security_strategy.md (Updated) ---

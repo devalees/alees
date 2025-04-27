@@ -142,3 +142,4 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
+media/

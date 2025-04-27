@@ -61,6 +61,8 @@
     8.  **Run Post-Deployment Checks/Smoke Tests:** Execute a small suite of critical API tests or health checks against the newly deployed version.
     9.  **Traffic Shifting (Blue-Green/Canary):** If using these strategies, gradually shift traffic to the new version while monitoring health.
     10. **Notifications:** Notify relevant teams of deployment success or failure.
+    **
+    *   **Clarify Static Files:** Add an explicit step for `python manage.py collectstatic` *before* restarting application servers, ensuring static files are gathered correctly for serving via Nginx or cloud storage/CDN.
 
 ## 6. Deployment Infrastructure Considerations (High-Level)
 
