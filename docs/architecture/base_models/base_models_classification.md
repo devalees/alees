@@ -2,7 +2,9 @@
 
 ## 1. Core Foundation Models
 - **Organization/** - Base organization structure
-- **User/** - User management
+- **OrganizationType/** - Organization type management
+- **OrganizationMembership/** - Organization membership management
+- **UserProfile/** - User profile management
 - **Contact/** - Contact information
 - **Address/** - Address management
 - **OrganizationScoped/** - Organization scoping
@@ -11,28 +13,25 @@
 - **Product/** - Product management
 - **Category/** - Product categorization
 - **Warehouse/** - Inventory management
+- **StockLocation/** - Stock location management
 - **Tax/** - Tax management
 - **UoM/** - Unit of Measurement
 - **Currency/** - Currency management
 
 ## 3. System Infrastructure Models
-- **Audit/** - Audit logging
+- **AuditLogging/** - Audit logging
 - **Status/** - Status tracking
 - **Workflow/** - Workflow management
 - **Timestamped/** - Timestamp management
-- **Permission/** - Permission management
+- **Auditable/** - Audit trail management
 
 ## 4. Data Management Models
 - **FileStorage/** - File storage
 - **DocumentSystem/** - Document management
 - **Search/** - Search functionality
-- **Caching/** - Caching system
 - **Filtering/** - Data filtering
-- **Validation/** - Data validation
 
 ## 5. Integration & Communication Models
-- **Integration/** - System integration
-- **Localization/** - Internationalization
 - **Notification/** - Notification system
 - **Comment/** - Comment system
 - **Tagging/** - Tagging system
@@ -40,14 +39,10 @@
 - **VideoMeeting/** - Video conferencing system
 
 ## 6. Analytics & Reporting Models
-- **Analytics/** - Analytics
-- **Reporting/** - Reporting
 - **ExportImport/** - Data export/import
-- **Monitoring/** - System monitoring
 
 ## 7. Automation Models
 - **Automation/** - Automation
-- **Scheduling/** - Task scheduling
 
 ## Model Relationships
 

@@ -1,93 +1,109 @@
-# OrganizationScoped Mechanism - Product Requirements Document (PRD)
+
+
+# OrganizationScoped Mechanism - Product Requirements Document (PRD) (Revised for Simple Org-Aware RBAC)
 
 ## 1. Overview
-- **Purpose**: To define the standard mechanism (`OrganizationScoped` abstract base model and associated filtering logic) for ensuring data segregation and multi-tenancy across the ERP system. This mechanism links various data models to the `Organization` entity and automatically filters data access based on the user's organizational context.
-- **Scope**: Definition of the `OrganizationScoped` **Abstract Base Model**, the implementation of the automatic queryset filtering logic (enforcement), and requirements related to applying and testing this mechanism.
-- **Target Users**: System Developers (implementing models that inherit this abstract model), System Architects (designing data segregation), Security Auditors (verifying multi-tenancy).
+
+*   **Purpose**: To define the standard mechanism (`OrganizationScoped` abstract base model and associated filtering logic) for ensuring data segregation and multi-tenancy across the ERP system. This mechanism links various data models to the `Organization` entity and automatically filters data access based on the user's organizational context derived from `OrganizationMembership`.
+*   **Scope**: Definition of the `OrganizationScoped` **Abstract Base Model**, the implementation of the automatic queryset filtering logic (enforcement), integration with the Org-Aware RBAC system, and requirements related to applying and testing this mechanism.
+*   **Target Users**: System Developers (implementing models that inherit this abstract model), System Architects (designing data segregation), Security Auditors (verifying multi-tenancy).
 
 ## 2. Business Requirements
-- **Mandatory Data Segregation**: Ensure data associated with one organization is not accessible to users of another organization by default (enforce multi-tenancy).
-- **Consistent Scoping Implementation**: Provide a single, reusable pattern for all modules needing organization-level data isolation.
-- **Transparency for End-Users**: Standard data access (listing, retrieving) should automatically apply organizational filters without requiring specific actions from the end-user.
+
+*   **Mandatory Data Segregation**: Ensure data associated with one organization is not accessible by users unless they have membership/permissions within that specific organization.
+*   **Consistent Scoping Implementation**: Provide a single, reusable pattern for organization-level data isolation.
+*   **Transparency for End-Users**: Standard data access automatically applies organizational filters based on the user's memberships.
 
 ## 3. Core Scoping Mechanism Implementation
 
 ### 3.1 Abstract Base Model Definition (`OrganizationScoped`)
-- **Implementation**: Defined as a Django **Abstract Base Model** (inherits from `models.Model` and includes `class Meta: abstract = True`).
-- **Location**: Defined in a shared location (e.g., `core/models.py` or `common/models.py`).
-- **Core Field**: Contains a non-nullable `ForeignKey` relationship to the `Organization` model.
-    - Example: `organization = models.ForeignKey(Organization, on_delete=models.PROTECT, related_name='%(class)s_set')`
-    - `on_delete=models.PROTECT` (or similar restrictive setting like `CASCADE` if scoped objects should be deleted with the org) is recommended. Default to `PROTECT`.
-- **Purpose**: To establish the structural link between an inheriting data model and a specific `Organization` record.
+*   **Implementation**: Defined as a Django **Abstract Base Model** (inherits `models.Model`, `Meta: abstract = True`).
+*   **Location**: Shared location (e.g., `core/models.py`).
+*   **Core Field**: Contains a non-nullable `ForeignKey` to `Organization`.
+    *   Example: `organization = models.ForeignKey(Organization, on_delete=models.PROTECT, related_name='%(app_label)s_%(class)s_set', db_index=True)` *(Added `db_index=True`)*
+    *   `on_delete=models.PROTECT` recommended.
+*   **Purpose**: Structurally link inheriting models to a specific `Organization`.
 
-### 3.2 Automatic Scoping Enforcement Logic
-- **Goal**: To automatically filter querysets for models inheriting `OrganizationScoped` so that standard list/retrieve operations only return records belonging to the requesting user's permitted organization(s).
-- **Primary Implementation**: Override the `get_queryset` method within a **base API ViewSet or View mixin** (e.g., using Django Rest Framework). This mixin must be inherited by all ViewSets serving `OrganizationScoped` models.
-    - **Logic**:
-        1. Access the `request.user`.
-        2. Determine the organization(s) the user belongs to (e.g., via `user.get_organizations()`).
-        3. Check for superuser/administrative bypass: If the user is a superuser or has specific bypass permission, return the original unfiltered queryset (`super().get_queryset()`).
-        4. Filter the base queryset: `queryset.filter(organization__in=user_organizations)`.
-        5. Handle users with no organization assignment (typically return an empty queryset: `.none()`).
-- **Rationale for ViewSet Override**: Centralizes logic (DRY), direct access to `request.user` context, allows controlled bypass for specific administrative views if absolutely necessary.
+### 3.2 Automatic Scoping Enforcement Logic (QuerySet Filtering)
+*   **Goal**: Automatically filter querysets so users only retrieve records belonging to the organization(s) they are members of (via `OrganizationMembership`).
+*   **Primary Implementation**: Override `get_queryset` method within a **base API ViewSet Mixin** (e.g., `OrganizationScopedViewSetMixin`).
+    *   **Logic**:
+        1. Access `request.user`.
+        2. Handle unauthenticated users (return `queryset.none()` or raise error).
+        3. **Bypass for Superusers:** If `user.is_superuser`, return `super().get_queryset()`.
+        4. **Get User Orgs:** Call `user.get_organizations()` (which queries `OrganizationMembership`).
+        5. If no organizations returned, return `queryset.none()`.
+        6. **Filter Queryset:** Return `super().get_queryset().filter(organization__in=user_organizations)`.
+*   **Rationale**: Centralizes filtering logic, uses request context.
 
 ## 4. Functional Requirements
 
 ### 4.1 Applying the Scope
-- **Model Inheritance**: Any data model requiring organization-level segregation *must* inherit from the `OrganizationScoped` Abstract Base Model.
-- **API View Inheritance**: Any API ViewSet/View serving data from an `OrganizationScoped` model *must* inherit from the base ViewSet/View mixin that implements the Automatic Scoping Enforcement Logic (See 3.2).
-- **Data Creation**: Processes (e.g., API serializers, service layers) creating instances of `OrganizationScoped` models must ensure the `organization` foreign key is correctly populated based on the user's context or validated input (and user permissions for that org).
+*   **Model Inheritance**: Models needing org segregation **must** inherit `OrganizationScoped`.
+*   **API View Inheritance**: ViewSets for scoped models **must** inherit the `OrganizationScopedViewSetMixin`.
+*   **Data Creation (`perform_create` / Serializer `create`):**
+    *   The `organization` field **must** be set when creating instances of scoped models.
+    *   **Source of Organization:** The target `organization` for new records **must** be determined, typically from:
+        *   **Explicit Request Data:** An `organization` field in the API request payload (e.g., `{"name": "...", "organization": "<org_pk>"}`).
+        *   **URL Context:** If using nested URLs like `/organizations/{org_pk}/products/`.
+        *   **(Less Ideal)** User's "default" or "current active" organization context (requires additional state management).
+    *   **Permission Check:** Before saving, the logic **must** verify the `request.user` has the necessary **model-level `add_modelname` permission *within the context of the target organization*** (using the Org-Aware RBAC check function).
 
 ### 4.2 Scoped Data Handling
-- **Default Filtering**: Standard list/retrieve API calls for scoped models must return only data associated with the user's organization(s) due to the automatic enforcement logic.
-- **Permission Integration**: Access control checks (e.g., using the `Permission` system) must operate *within* the already established organizational scope, or be organization-aware. A user needs both organizational access (implicit via scoping) and the specific permission (e.g., 'can_edit_product') to perform actions on scoped data.
+*   **Default Filtering**: `GET` requests (List/Retrieve) are automatically filtered by the user's organization memberships via the ViewSet mixin.
+*   **Permission Integration (Org-Aware RBAC):**
+    *   All access control checks (View, Add, Change, Delete) performed by DRF `permission_classes` or within views **must** use the **organization-aware permission checking mechanism** defined in the `rbac_strategy_org_aware.md`.
+    *   This check verifies if the user has the required Django model permission (`view_product`, `change_product`, etc.) granted via a role associated with their `OrganizationMembership` for the *specific organization* context of the data being accessed or created.
+    *   **Field-level permission checks are removed.** Access to fields is granted if the user has the relevant model-level permission (e.g., `change_model`) for that organization.
 
 ## 5. Technical Requirements
 
 ### 5.1 Data Management & Performance
-- **Indexing**: The `organization` **ForeignKey field must be indexed** in the database table for *every concrete* model that inherits `OrganizationScoped`. This is critical for the performance of the automatic filtering query (`WHERE organization_id IN (...)`).
-- **Query Efficiency**: The enforcement logic query (`queryset.filter(organization__in=...)`) must be performant, even with users belonging to multiple organizations or large numbers of scoped records.
-- **User Context Retrieval**: The method to retrieve the user's organization(s) (e.g., `user.get_organizations()`) must be efficient and potentially cached.
+*   **Indexing:** The `organization` ForeignKey **must be indexed** on all inheriting concrete model tables. *(This is now default on the abstract model's FK definition)*.
+*   **Query Efficiency:** The `queryset.filter(organization__in=...)` must be performant. `user.get_organizations()` (querying `OrganizationMembership`) must be efficient.
 
 ### 5.2 Security
-- **Multi-Tenancy Enforcement**: The automatic filtering logic is the primary technical control ensuring data segregation between organizations. It must be robust against bypass attempts by standard users.
-- **Superuser Access**: The bypass logic for superusers/administrators must be clearly defined and carefully implemented.
-- **Auditability**: Actions performed on scoped data should ideally be logged by the `Audit Logging System` with both user and `organization` context captured in the log entry.
+*   **Multi-Tenancy Enforcement:** The `get_queryset` filtering logic is the core control.
+*   **Create/Update Security:** Validation within `perform_create`/serializers must ensure users can only assign data to organizations where they have appropriate `add_model` permissions (checked via Org-Aware RBAC). Users should not be able to change the `organization` field on update unless specifically permitted.
+*   **Superuser Bypass:** Clearly implemented and tested.
+*   **Auditability:** Audit logs for scoped data should include the `organization` context.
 
 ### 5.3 Integration
-- **User Model**: The scoping logic depends on the `User` model (or related profile/membership model) to determine organizational context (`user.get_organizations()`).
-- **Base API Views**: Relies on developers consistently using the designated base ViewSet/View mixin for scoped endpoints.
-- **Organization Model**: Depends on the `Organization` model for the ForeignKey relationship.
+*   **User/Membership:** Relies on `User.get_organizations()` method querying `OrganizationMembership`.
+*   **Base API Views:** Relies on developers using the `OrganizationScopedViewSetMixin`.
+*   **Organization Model:** Dependency for the ForeignKey.
+*   **RBAC System:** Relies on the Org-Aware permission checking function (`has_perm_in_org(...)` or similar).
 
 ## 6. Non-Functional Requirements
-- **Scalability**: The filtering mechanism must scale effectively as the number of organizations, users, and scoped data records increases.
-- **Performance**: Meet defined performance targets for scoped API list/retrieve operations.
-- **Reliability**: The scoping mechanism must function reliably; failure could lead to data leakage or denial of access.
-- **Testability**: The mechanism (abstract model structure, enforcement logic) must be thoroughly testable via unit and integration tests.
+*   Scalability, Performance, Reliability, Testability (as before).
 
 ## 7. API Documentation Requirements
-- **Mechanism Documentation**: Clearly document the `OrganizationScoped` Abstract Base Model and the requirement for developers to use it for organization-specific data.
-- **API Endpoint Behavior**: Explicitly state in the documentation for *all* relevant API endpoints serving models that inherit `OrganizationScoped` that the returned data is automatically filtered based on the authenticated user's organization context.
-- **Superuser/Admin Behavior**: Document how administrative roles might bypass standard scoping filters.
-- **Developer Guidance**: Provide clear instructions or examples on how to create new scoped models and API endpoints correctly (inheriting the abstract model and the base view logic).
+*   Document `OrganizationScoped` inheritance requirement for developers.
+*   State that relevant API endpoints are automatically filtered by user's organization memberships.
+*   Document how the target `organization` is determined/provided during `POST` requests for creating scoped objects.
+*   Document superuser behavior.
 
 ## 8. Testing Requirements
-- **Unit Tests**: Test the structure of the `OrganizationScoped` abstract model itself (e.g., field definition). Test helper functions for getting user organizations (`user.get_organizations()`).
-- **Integration Tests**:
-    - **Core Logic Verification**: Test the `get_queryset` override in the base ViewSet/View mixin extensively. Verify correct filtering for users in zero, one, or multiple organizations.
-    - **Data Isolation**: Create data belonging to Org A and Org B in a concrete model inheriting `OrganizationScoped`. Assert that User A (belonging only to Org A) only sees Org A data via standard API calls, and User B only sees Org B data.
-    - **Superuser Bypass**: Verify that designated administrative users can retrieve data across organizations when using appropriate endpoints/parameters (if applicable), while standard users cannot.
-    - **Create/Update Operations**: Test that when creating/updating scoped data via API, the `organization` field is correctly assigned based on user context or validated input, and cannot be set to an organization the user doesn't have permissions for.
-- **Performance Tests**: Measure the performance impact of the automatic filtering join/subquery, especially on list views for tables inheriting `OrganizationScoped` with many records.
-- **Security Tests**: Actively attempt to bypass the organizational scoping mechanism via API manipulation or crafted requests.
+*   **Unit Tests**: Test `OrganizationScoped` abstract model definition. Test `user.get_organizations()` helper.
+*   **Integration Tests**:
+    *   **Core Logic Verification**: Test the `get_queryset` override in the base ViewSet Mixin for users in zero/one/multiple orgs.
+    *   **Data Isolation**: Verify User A (Org A) cannot see/access Org B data via LIST or RETRIEVE API calls for scoped models.
+    *   **Superuser Bypass**: Verify superuser sees data from all orgs.
+    *   **Create Operations**: Test `POST` requests:
+        *   Verify `organization` field is correctly set based on request data/context.
+        *   Verify user without `add_model` permission *in the target organization* gets 403 Forbidden.
+        *   Verify user *with* `add_model` permission *in the target organization* gets 201 Created.
+    *   **Update/Delete Operations:** Verify standard model permissions are checked *within the organization scope* of the object being modified/deleted.
+*   **Performance Tests**: Measure `organization__in` filter performance.
+*   **Security Tests**: Attempt to bypass org scoping filters. Attempt to create/modify data in unauthorized organizations.
 
 ## 9. Deployment Requirements
-- **Migration**: When a concrete model inherits `OrganizationScoped`, ensure the migration adds the `organization` ForeignKey and the required database index. Handle defaults/population if adding to existing tables with data.
-- **Code Deployment**: Ensure the base ViewSet/View mixin containing the enforcement logic is correctly deployed and inherited by all relevant API views.
+*   Migrations add `organization_id` column and index to inheriting models.
+*   `OrganizationScopedViewSetMixin` deployed and used by relevant views.
+*   Org-Aware RBAC permission checking mechanism must be deployed.
 
 ## 10. Consumer Requirements (Developers)
-- **Developers** building new features must:
-    - Identify models containing organization-specific data.
-    - Inherit the `OrganizationScoped` **Abstract Base Model** for those models.
-    - Inherit the appropriate base ViewSet/View mixin (containing the enforcement logic) for the associated API endpoints.
-    - Ensure data creation logic correctly sets the `organization` field based on context and permissions.
+*   Inherit `OrganizationScoped` abstract model for org-specific data.
+*   Inherit `OrganizationScopedViewSetMixin` for associated API ViewSets.
+*   Ensure creation logic correctly determines and validates the target `organization` based on request context and Org-Aware permissions.
+*   Use the Org-Aware permission checking functions for any manual authorization logic.

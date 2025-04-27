@@ -1,261 +1,173 @@
-Okay, let's generate the implementation steps for the `OrganizationScoped` mechanism. This is slightly different from a standard model, as it involves two key parts: defining the Abstract Base Model and implementing the enforcement logic (likely in a base ViewSet mixin).
 
---- START OF FILE organizationscoped_implementation_steps.md ---
-
-# OrganizationScoped Mechanism - Implementation Steps
+# OrganizationScoped Mechanism - Implementation Steps (Revised for Simple Org-Aware RBAC)
 
 ## 1. Overview
 
-**Model Name:**
-`OrganizationScoped` (Abstract Base Model) & `OrganizationScopedViewSetMixin` (Example name for enforcement logic)
+**Component Name:**
+`OrganizationScoped` (Abstract Base Model) & `OrganizationScopedViewSetMixin`
 
 **Corresponding PRD:**
-`organization_scoped_prd.md`
+`organizationscoped_prd.md` (Revised for Simple Org-Aware RBAC)
 
 **Depends On:**
-`Organization` model, `User` model (and a way to get user's organizations), Django Rest Framework (`viewsets`, `mixins`), Base API View structure.
+`Organization` model, `User` model, `OrganizationMembership` model, Org-Aware RBAC check function (`has_perm_in_org`), DRF (`viewsets`, `mixins`), Base API View structure.
 
 **Key Features:**
-Provides multi-tenancy by linking inheriting models to an `Organization` via an Abstract Base Model and automatically filtering API querysets based on the requesting user's associated organization(s) via a ViewSet mixin.
+Provides multi-tenancy via an `organization` ForeignKey (Abstract Base Model) and automatic queryset filtering in ViewSets based on user's `OrganizationMembership`. Ensures creation happens within authorized organizations using Org-Aware RBAC.
 
 **Primary Location(s):**
-*   Abstract Model: `core/models.py` (or `common/models.py`)
-*   ViewSet Mixin: `core/views.py` or `api/v1/base_views.py` (or similar shared API utility location)
+*   Abstract Model: `core/models.py`
+*   ViewSet Mixin: `core/views.py` or `api/v1/base_views.py`
 
 ## 2. Prerequisites
 
-[ ] Verify `Organization` model is implemented and migrated.
-[ ] Verify `User` model and `UserProfile` model (or alternative mechanism for linking users to organizations) are implemented.
-[ ] **Define User-Organization Link:** Decide and implement the method for determining a user's organization(s). This might be:
-    *   A direct `ForeignKey` or `ManyToManyField` on `UserProfile` (e.g., `UserProfile.primary_organization`, `UserProfile.organizations`).
-    *   A separate `Membership` model linking User and Organization.
-    *   A method on the `User` model (e.g., `user.get_organizations()`) that encapsulates this logic. **Steps below assume a `user.get_organizations()` method exists or can be added.**
-[ ] Ensure the `core` app (or chosen shared location) exists.
-[ ] Ensure DRF is installed and basic ViewSet structure is established.
+[ ] Verify `Organization`, `User`, `UserProfile`, `OrganizationMembership` models implemented/migrated.
+[ ] Verify helper method `user.get_organizations()` (querying `OrganizationMembership`) is implemented and tested.
+[ ] Verify the Org-Aware RBAC permission checking mechanism (`has_perm_in_org` or similar function/backend method) is implemented.
+[ ] Ensure `core` app (or shared location) exists.
+[ ] Ensure basic DRF ViewSet structure established.
 
 ## 3. Implementation Steps (TDD Workflow)
 
-  *(Testing involves applying the abstract model and mixin to concrete test models/views)*
-
   ### 3.1 Abstract Base Model Definition (`core/models.py`)
 
-  [ ] **(Test First - Model Structure)**
-      Write **Unit Test(s)** (`core/tests/test_orgscoped_model.py`) using a concrete test model inheriting `OrganizationScoped`:
-      *   Verify the `organization` ForeignKey field exists on the concrete model.
-      *   Verify it links correctly to the `Organization` model.
-      *   Verify `on_delete` behavior is `PROTECT` (or as specified).
-      *   Verify it's non-nullable (`null=False`).
-      ```python
-      # core/tests/test_orgscoped_model.py
-      from django.db import models
-      from django.test import TestCase
-      from core.models import OrganizationScoped # Will fail initially
-      # Assuming Org model and factory exist
-      from api.v1.base_models.organization.models import Organization
-      from api.v1.base_models.organization.tests.factories import OrganizationFactory
-
-      class ConcreteScopedModel(OrganizationScoped):
-          name = models.CharField(max_length=100)
-          # Add Timestamped/Auditable if needed for tests
-          class Meta:
-              app_label = 'core'
-
-      class OrgScopedModelDefinitionTests(TestCase):
-          def test_organization_field_exists(self):
-              """Verify the organization field is added and configured."""
-              try:
-                  field = ConcreteScopedModel._meta.get_field('organization')
-                  self.assertIsNotNone(field)
-                  self.assertIsInstance(field, models.ForeignKey)
-                  self.assertEqual(field.remote_field.model, Organization)
-                  self.assertEqual(field.remote_field.on_delete, models.PROTECT)
-                  self.assertFalse(field.null)
-              except models.FieldDoesNotExist:
-                  self.fail("Organization field does not exist on ConcreteScopedModel")
-
-          def test_requires_organization_on_create(self):
-              """Verify database enforces non-null organization."""
-              from django.db import IntegrityError
-              with self.assertRaises(IntegrityError):
-                   # Attempt to create without org - should fail at DB level if field is NOT NULL
-                   # Note: This might depend on exact DB backend, direct field check is better
-                   ConcreteScopedModel.objects.create(name="test no org") # Error expected
-
-              org = OrganizationFactory()
-              instance = ConcreteScopedModel.objects.create(name="test with org", organization=org)
-              self.assertEqual(instance.organization, org)
-
-      ```
-      Run; expect failure. **(Red)**
-  [ ] Define the `OrganizationScoped` abstract base model in `core/models.py`:
+  [ ] **(Test First - Model Structure)** Write Unit Tests (`core/tests/test_orgscoped_model.py`) using a concrete test model inheriting `OrganizationScoped`. Verify `organization` FK exists, links to `Organization`, `on_delete=PROTECT`, non-nullable, `db_index=True`. Test `IntegrityError` on create without org. *(This step likely already done based on previous iteration)*.
+  [ ] Define/Verify the `OrganizationScoped` abstract base model in `core/models.py`:
       ```python
       # core/models.py
-      from django.db import models
-      from django.utils.translation import gettext_lazy as _
-      # Import Organization based on final location
-      from api.v1.base_models.organization.models import Organization
+      # ... other imports ...
+      from api.v1.base_models.organization.models import Organization # Adjust path
 
       class OrganizationScoped(models.Model):
-          """
-          Abstract base model adding a required link to an Organization,
-          used for multi-tenant data scoping.
-          """
           organization = models.ForeignKey(
               Organization,
               verbose_name=_("Organization"),
-              on_delete=models.PROTECT, # Or CASCADE if scoped objects die with org
-              related_name='%(app_label)s_%(class)s_set', # Standard related name
-              # null=False is default, no need to specify explicitly
+              on_delete=models.PROTECT,
+              related_name='%(app_label)s_%(class)s_set',
+              db_index=True, # Ensure index is added via abstract model if possible
               help_text=_("The Organization this record belongs to.")
           )
-
-          class Meta:
-              abstract = True
-              # Add index for performance on concrete models
-              # indexes = [ models.Index(fields=['organization']) ] # This goes in concrete model Meta
+          class Meta: abstract = True
       ```
-  [ ] Run tests; expect pass. **(Green)**
-  [ ] Refactor. **(Refactor)**
+  [ ] Run tests; expect pass.
 
-  ### 3.2 User Organization Retrieval (`User` model or `UserProfile`)
-
-  [ ] **(Test First)** Write **Unit Test(s)** for the `user.get_organizations()` method (or wherever this logic resides).
-      *   Test user with no org assignments returns empty list/queryset.
-      *   Test user assigned to one org returns list/queryset with that org.
-      *   Test user assigned to multiple orgs (if supported) returns list/queryset with all assigned orgs.
-  [ ] Implement the `get_organizations()` method on the `User` model (if extending AbstractUser) or `UserProfile`. This method needs to query the chosen relationship (Direct FK/M2M on Profile, or Membership model).
-      ```python
-      # Example assuming Direct FK on UserProfile
-      # api/v1/base_models/user/models.py
-      # class UserProfile(...):
-      # ... fields ...
-      #    def get_organizations(self):
-      #        # Returns a list or QuerySet of Organization objects
-      #        if self.primary_organization:
-      #             # Simple case: user belongs to one primary org
-      #             return [self.primary_organization]
-      #        # Add logic here if using M2M or Membership model
-      #        return [] # Or Organization.objects.none()
-
-      # Add corresponding method on User model to delegate
-      # class User(...):
-      # ...
-      #    def get_organizations(self):
-      #        if hasattr(self, 'profile'):
-      #            return self.profile.get_organizations()
-      #        return [] # Or Organization.objects.none()
-      ```
-  [ ] Run tests for `get_organizations()`; expect pass. Refactor.
-
-  ### 3.3 Base ViewSet Mixin Definition (`core/views.py` or `api/base_views.py`)
+  ### 3.2 Base ViewSet Mixin Definition (`core/views.py` or `api/base_views.py`)
 
   [ ] **(Test First - ViewSet Logic)**
-      Write **Integration Test(s)** (`core/tests/test_orgscoped_views.py` or similar) using `@pytest.mark.django_db`.
-      *   Set up multiple Orgs (OrgA, OrgB) and Users (UserA in OrgA, UserB in OrgB, Superuser).
-      *   Create test data using `ConcreteScopedModel` belonging to OrgA and OrgB.
-      *   Create a simple test ViewSet (`ConcreteScopedViewSet`) inheriting `OrganizationScopedViewSetMixin` (doesn't exist yet) and `viewsets.ReadOnlyModelViewSet`. Register it with a test router.
-      *   Use the `APIClient` (authenticated as UserA) to make a `GET` request to the test ViewSet's list endpoint. Assert only data from OrgA is returned.
-      *   Repeat request authenticated as UserB. Assert only data from OrgB is returned.
-      *   Repeat request authenticated as Superuser. Assert data from *both* OrgA and OrgB is returned.
-      *   Test user belonging to no org -> gets empty list.
-      Run; expect failure (`OrganizationScopedViewSetMixin` doesn't exist or logic fails). **(Red)**
-  [ ] Define the `OrganizationScopedViewSetMixin` in a shared view location:
+      Write **Integration Test(s)** (`core/tests/test_orgscoped_views.py`) using `@pytest.mark.django_db`.
+      *   Setup Orgs (A, B), Users (UserA in OrgA via Membership+Role, UserB in OrgB, Superuser). Give UserA `view_concretescopedmodel` permission *only* via their role in OrgA membership.
+      *   Create test data using `ConcreteScopedModel` in OrgA and OrgB.
+      *   Create test ViewSet (`ConcreteScopedViewSet`) inheriting `OrganizationScopedViewSetMixin` + `ReadOnlyModelViewSet`. Register with router.
+      *   Test `GET` list as UserA -> Assert **only OrgA data** returned.
+      *   Test `GET` list as UserB -> Assert **only OrgB data** returned (if they have view perm in OrgB).
+      *   Test `GET` list as Superuser -> Assert **OrgA and OrgB data** returned.
+      *   Test `GET` list as User belonging to *no* orgs -> Assert empty list.
+      *   Test `GET` list as User belonging to *both* OrgA and OrgB -> Assert data from *both* orgs returned.
+      *   **Add Test for Create:**
+          *   Use a test ViewSet inheriting the Mixin + `CreateModelMixin`.
+          *   `POST` as UserA with payload specifying `organization=OrgA.pk`. Mock the Org-Aware `has_perm` check to return `True`. Assert 201 Created, verify `instance.organization` is OrgA.
+          *   `POST` as UserA with payload specifying `organization=OrgB.pk`. Mock Org-Aware `has_perm` check to return `False`. Assert 403 Forbidden or appropriate validation error from `perform_create`.
+          *   `POST` as UserA *without* specifying `organization` in payload. Assert appropriate error (e.g., 400 Bad Request) because target org cannot be determined.
+      Run; expect failure. **(Red)**
+  [ ] Define/Refine the `OrganizationScopedViewSetMixin`:
       ```python
       # core/views.py (Example location)
-      from rest_framework.exceptions import PermissionDenied
+      from rest_framework.exceptions import PermissionDenied, ValidationError
+      from django.shortcuts import get_object_or_404
       # Import Organization based on final location
       from api.v1.base_models.organization.models import Organization
+      # Import your Org-Aware permission checker
+      from rbac.permissions import has_perm_in_org # Example import path
 
       class OrganizationScopedViewSetMixin:
           """
-          Mixin for DRF ViewSets to automatically filter querysets
-          based on the request.user's associated organization(s).
-
-          Assumes the ViewSet's model inherits from OrganizationScoped
-          and the user model has a method get_organizations().
+          DRF ViewSet Mixin for Organization Scoped data.
+          - Filters querysets in get_queryset() based on user's memberships.
+          - Validates/sets organization in perform_create() based on request data and permissions.
           """
           def get_queryset(self):
-              # Start with the ViewSet's explicitly defined queryset
               queryset = super().get_queryset()
               user = self.request.user
 
-              if not user or not user.is_authenticated:
-                  # Deny access or return empty if unauthenticated access should be blocked entirely
-                  # raise PermissionDenied("Authentication required.") # Option 1
-                  return queryset.none() # Option 2: Return empty list
+              if not user or not user.is_authenticated: return queryset.none()
+              if user.is_superuser: return queryset
 
-              if user.is_superuser:
-                  # Superusers can see all organizations' data
-                  return queryset
+              user_organizations = user.get_organizations() # Queries OrganizationMembership
+              if not user_organizations.exists(): return queryset.none()
 
-              # Get the list/queryset of organizations the user belongs to
-              user_organizations = user.get_organizations() # Assumes this method exists
-
-              if not user_organizations:
-                   # User is authenticated but not linked to any org they can see data for
-                   return queryset.none()
-
-              # Filter the queryset to include only objects belonging to the user's orgs
-              # Assumes the inheriting model has an 'organization' FK field
-              organization_pks = [org.pk for org in user_organizations] # Get PKs if it returns objects
-              # Or if get_organizations returns a QuerySet:
-              # organization_pks = user_organizations.values_list('pk', flat=True)
-              return queryset.filter(organization_id__in=organization_pks)
+              # Filter by the organizations the user is an active member of
+              return queryset.filter(organization__in=user_organizations)
 
           def perform_create(self, serializer):
-              # Automatically set organization on create based on user context
-              # This assumes user belongs to ONE primary org for creation scope
               user = self.request.user
-              # Note: Check add permission for the target org here using RBAC
-              if user and user.is_authenticated:
-                   user_orgs = user.get_organizations()
-                   primary_org = user_orgs[0] if user_orgs else None # Simplistic: use first org
+              # --- Determine Target Organization ---
+              # Option 1: Explicitly require 'organization' in request data
+              org_pk = serializer.validated_data.get('organization', None) # Assuming it's validated if present
+              if not org_pk:
+                  # Try getting from URL kwarg if nested route like /orgs/{org_pk}/items/
+                  org_pk = self.kwargs.get('organization_pk') # Adjust kwarg name as needed
 
-                   if primary_org:
-                        # Check if user has permission to create for this org via RBAC?
-                        # if check_permission(user, 'add_model', organization=primary_org): # Example check
-                       serializer.save(organization=primary_org)
-                       # else: raise PermissionDenied(...)
-                   else:
-                        # Handle case where user has no org to create data in
-                        raise PermissionDenied("Cannot determine organization context for creation.")
-              else:
-                   # Handle anonymous creation? Usually disallowed for scoped models.
-                   raise PermissionDenied("Authentication required to create scoped data.")
+              if not org_pk:
+                   raise ValidationError({'organization': ['This field is required for scoped creation.']})
+
+              # Fetch the target organization instance
+              target_organization = get_object_or_404(Organization, pk=org_pk)
+
+              # --- Permission Check ---
+              # Get the required model 'add' permission codename
+              model_meta = self.queryset.model._meta
+              add_perm = f'{model_meta.app_label}.add_{model_meta.model_name}'
+
+              # Check permission using the Org-Aware RBAC function
+              if not has_perm_in_org(user, add_perm, target_organization):
+                   raise PermissionDenied(f"You do not have permission to add '{model_meta.model_name}' records in organization '{target_organization.name}'.")
+
+              # Save with validated organization
+              serializer.save(organization=target_organization) # Pass org to serializer save
+
+          def get_serializer_context(self):
+               """ Add org context for serializers if needed"""
+               context = super().get_serializer_context()
+               # If needed, determine target org for validation based on request/instance
+               # target_organization = ... logic to determine context ...
+               # context['target_organization'] = target_organization
+               return context
       ```
+      *   **Note on `perform_create`:** This example assumes the `organization` PK is passed in the request body. Adjust logic if using nested URLs or other context methods. The key is to **identify the target org** and **check permission *for that org***.
+      *   **Note on Serializer:** The serializer for the inheriting model might need `serializers.PrimaryKeyRelatedField(queryset=Organization.objects.all(), write_only=True, required=True)` for the `organization` field to accept input during POST/PUT, or it could be excluded and set only by `perform_create`.
   [ ] Run ViewSet logic tests; expect pass. **(Green)**
-  [ ] Refactor the mixin code (error handling, user org logic). **(Refactor)**
+  [ ] Refactor the mixin. **(Refactor)**
 
-  ### 3.4 Applying to Concrete Models/Views
+  ### 3.3 Applying to Concrete Models/Views
 
-  [ ] **(Test First - Real ViewSet)** Write API tests for a *real* model that inherits `OrganizationScoped` (e.g., `Product`, `Warehouse` once implemented). Verify the org scoping works as expected for List, Retrieve, Create operations for that specific model's ViewSet.
-  [ ] Ensure the concrete model (e.g., `Product`) inherits `OrganizationScoped`.
-  [ ] Ensure the concrete ViewSet (e.g., `ProductViewSet`) inherits the `OrganizationScopedViewSetMixin`.
+  [ ] **(Test First - Real ViewSet)** Write comprehensive API tests for actual scoped models (`Product`, `Warehouse`, `Document`, etc.). Ensure LIST, RETRIEVE, CREATE, UPDATE, DELETE respect Org Scoping and Org-Aware permissions. Test creating objects by providing the target `organization` PK in the payload.
+  [ ] Ensure concrete models inherit `OrganizationScoped`.
+  [ ] Ensure concrete ViewSets inherit `OrganizationScopedViewSetMixin`.
+  [ ] Ensure concrete Serializers handle the `organization` field appropriately (e.g., read-only for output, potentially writeable input field for create, validated in view `perform_create`).
   [ ] Run tests; expect pass.
 
-  ### 3.5 Migrations
+  ### 3.4 Migrations
 
-  [ ] Migrations are generated when concrete models inherit `OrganizationScoped`, adding the `organization_id` column and index *to those concrete model tables*. Ensure `makemigrations` is run for apps containing models that now inherit `OrganizationScoped`.
-  [ ] **Review:** Check that `db_index=True` is added to the `organization` ForeignKey in the migration for inheriting models (Django usually adds this automatically for FKs, but verify). Add manually via `Meta.indexes` on the concrete model if needed for certainty.
+  [ ] Ensure `makemigrations` is run for apps containing models inheriting `OrganizationScoped`.
+  [ ] **Review:** Verify `organization_id` column and index are added.
   [ ] Run `migrate`.
 
-  ### 3.6 Documentation Updates
+  ### 3.5 Documentation Updates
 
-  [ ] Update API documentation strategy/template to note that endpoints for `OrganizationScoped` models are automatically filtered.
-  [ ] Update developer onboarding/guidelines to instruct inheriting from `OrganizationScoped` (model) and `OrganizationScopedViewSetMixin` (view).
+  [ ] Update documentation (API Strategy, Developer Guides) about Org Scoped models/views. Emphasize how target org is determined on create and how permissions are checked.
 
 ## 4. Final Checks
 
-[ ] Run the *entire* test suite (`pytest`). Pay close attention to tests involving scoped models and different user types (regular user in org A, user in org B, superuser).
-[ ] Run linters (`flake8`) and formatters (`black`) on relevant `core` files and any modified concrete models/views.
-[ ] Check code coverage (`pytest --cov`). Ensure mixin logic and `get_organizations` helper are covered.
-[ ] Manually test API endpoints for scoped models with different users locally.
+[ ] Run the *entire* test suite (`pytest`). Verify all Org Scoping and permission tests pass for various users and organizations.
+[ ] Run linters (`flake8`) and formatters (`black`).
+[ ] Check code coverage (`pytest --cov`). Ensure mixin logic is covered.
+[ ] Manually test API endpoints for scoped models with different users (Superuser, User in Org A, User in Org B, User in no Org). Verify data isolation and create permissions.
 
 ## 5. Follow-up Actions
 
-[ ] Address TODOs (e.g., refine `get_organizations` logic, add more robust org context handling in `perform_create`).
+[ ] Address TODOs (Refine `perform_create` org determination if needed).
 [ ] Create Pull Request.
-[ ] Update relevant documentation (API docs, developer guides).
-[ ] Ensure future models requiring org scoping correctly inherit the abstract model and use the ViewSet mixin.
+[ ] Update relevant documentation.
+[ ] Apply mixins to all necessary future models.
 
---- END OF FILE organizationscoped_implementation_steps.md ---
+--- END OF FILE organizationscoped_implementation_steps.md (Revised for Simple Org-Aware RBAC) ---
