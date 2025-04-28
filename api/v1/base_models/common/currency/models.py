@@ -1,40 +1,9 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
+from core.models import Timestamped, Auditable
 
-class Currency(models.Model):
-    # Timestamped fields
-    created_at = models.DateTimeField(
-        _("Created At"),
-        auto_now_add=True,
-        help_text=_("When this record was created.")
-    )
-    updated_at = models.DateTimeField(
-        _("Updated At"),
-        auto_now=True,
-        help_text=_("When this record was last updated.")
-    )
-
-    # Auditable fields
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        verbose_name=_("Created By"),
-        related_name="%(app_label)s_%(class)s_created",
-        on_delete=models.PROTECT,
-        help_text=_("User who created this record."),
-        null=True,
-        blank=True
-    )
-    updated_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        verbose_name=_("Updated By"),
-        related_name="%(app_label)s_%(class)s_updated",
-        on_delete=models.PROTECT,
-        help_text=_("User who last updated this record."),
-        null=True,
-        blank=True
-    )
-
+class Currency(Timestamped, Auditable):
     # Currency fields
     code = models.CharField(
         _("ISO 4217 Code"),

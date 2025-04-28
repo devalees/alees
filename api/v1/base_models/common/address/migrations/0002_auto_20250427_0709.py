@@ -12,12 +12,10 @@ class Migration(migrations.Migration):
     operations = [
         migrations.RunSQL(
             sql=[
-                "DROP INDEX IF EXISTS api_v1_comm_country_c8c0f4_idx;",
-                "DROP INDEX IF EXISTS api_v1_addr_country_6e7734_idx;",
-                "CREATE INDEX IF NOT EXISTS api_v1_addr_country_6e7734_idx ON address_address (country);",
+                "CREATE INDEX IF NOT EXISTS api_v1_comm_country_c8c0f4_idx ON address_address (country);",
             ],
             reverse_sql=[
-                "DROP INDEX IF EXISTS api_v1_addr_country_6e7734_idx;",
+                "DROP INDEX IF EXISTS api_v1_comm_country_c8c0f4_idx;",
             ],
         ),
     ]
