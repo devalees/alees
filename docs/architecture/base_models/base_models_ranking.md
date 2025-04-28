@@ -1,15 +1,23 @@
-Okay, thank you for the update! Acknowledged that `OrganizationType` is also complete.
+Okay, let's place the **Authentication API Implementation** (`auth_api_implementation_steps.md`) into the ranking based on its dependencies.
 
-That simplifies Phase 1 slightly. Here is the updated refined implementation ranking, reflecting that `Timestamped`, `Auditable`, `Currency`, `Address`, and `OrganizationType` are finished:
+**Dependencies:**
+*   Requires `User` model (built-in).
+*   Requires `UserProfile` model (#1 - for linking devices in 2FA, though core JWT/API Key doesn't strictly need it *implemented* first, just the `User` model).
+*   Requires DRF and chosen libraries (`simplejwt`, `django-otp`, `djangorestframework-api-key`).
+*   Provides authentication mechanisms needed by most subsequent API endpoints.
 
----
+**Logical Placement:**
+The best place for it is early in Phase 1, right after the `UserProfile` model is defined. This ensures the mechanisms for securing subsequent API endpoints are established before those endpoints are built. It doesn't have hard dependencies on `Contact`, `Organization`, etc., for its core setup.
+
+**Updated Ranking:**
 
 *(Completed: `Timestamped`, `Auditable`, `Currency`, `Address`, `OrganizationType`)*
 
 **Phase 1: Core Foundational Entities, Tracking & Scoping (Continued)**
 
 1.  **`UserProfile.md`** (Extends User, depends TS/A)
-2.  **`Contact.md`** (Depends TS/A, Org[nullable FK])
+2.  **`auth_api_implementation_steps.md`** (Implements JWT, API Key, 2FA Setup. Depends User, libs) <--- **NEW PLACEMENT**
+3.  **`Contact.md`** (Includes Channel Models. Depends TS/A, Address, User. Org[nullable FK])
 4.  **`Organization.md`** (Depends TS/A, OrgType, Contact[nullable FK], Address[nullable FK], Currency[nullable FK], MPTT, Taggit)
 5.  **`OrganizationMembership.md`** (Depends User, Org, Group, TS/A)
 6.  **`OrganizationScoped.md` (Mixin Definition Only)** (Depends Org)
@@ -59,6 +67,4 @@ That simplifies Phase 1 slightly. Here is the updated refined implementation ran
 
 ---
 
-This updated ranking looks correct based on the completed items and dependencies.
-
-The next item on the list is **`UserProfile.md`**. Please provide the PRD and Implementation Steps for `UserProfile` when you're ready!
+This places the core authentication API setup at step #2, right after the User Profile foundation is laid. Does this placement make sense?
