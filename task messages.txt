@@ -1,10 +1,11 @@
 === FOR IMPLEMENTATION ===
 based on project rules and attached implementation steps file do the following:
-### 3.9 API Endpoint Testing (`tests/api/test_endpoints.py`)
+### 3.7 API ViewSet Definition (`views.py`)
 
-  [ ] **(Test First - List/Retrieve)** Write tests for `GET /api/v1/organization-types/` and `GET /api/v1/organization-types/{name}/`. Assert 200, check structure, verify initial types are present.
-  [ ] Ensure `queryset` and permissions are correct.
-  [ ] Run list/retrieve tests; expect pass. Refactor.
+  [ ] **(Test First)** Write basic API Tests for profile endpoints (e.g., `/profiles/me/`).
+  [ ] Define `MyProfileView` (`RetrieveUpdateAPIView`) or admin ViewSet.
+  [ ] Run basic tests; expect pass. Refactor.
+
 
 with the following MUST follow rules:
 - DON'T expand your work beyond this task
@@ -30,12 +31,17 @@ please run global pytest  to examine some failed tests
 
 - run the tests to verify that the actual implementation is passed
 
-
+- please read this document carefully 
 - Produce the latest state of organizationtype implementation priefly 
-- Please update the implementation steps file to reflect our latest progress 
 - please create postman collection with all environment settings included for all endpoints with examples templates here  
-  
-- Git Commit with proper description, and push it core branch
+- please read the attached implementation steps carefully and asses the cureent state of this app compared to this documentation 
+
+
+- MUST follow the attached document literally
+
+- Please update the implementation steps file to reflect our latest progress 
+- Please Git Commit with proper description
+- Create an API documentation file (api.md) with more detailed examples 
 
 git reset --hard HEAD
 git clean -fd
