@@ -48,6 +48,7 @@ class TestUserProfile:
         assert not hasattr(profile, 'primary_organization')
 
     def test_str_representation(self):
-        """Test __str__ method returns username."""
+        """Test the string representation of UserProfile."""
         user = UserFactory(username='testuser')
-        assert str(user.profile) == 'testuser' 
+        profile = user.profile  # Profile is auto-created by signal
+        assert str(profile) == 'testuser' 

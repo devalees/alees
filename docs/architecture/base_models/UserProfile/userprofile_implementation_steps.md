@@ -88,21 +88,21 @@ Extends Django User with ERP-specific fields (job title, phone, manager), prefer
 
   ### 3.7 API ViewSet Definition (`views.py`)
 
-  [ ] **(Test First)** Write basic API Tests for profile endpoints (e.g., `/profiles/me/`).
-  [ ] Define `MyProfileView` (`RetrieveUpdateAPIView`) or admin ViewSet.
-  [ ] Run basic tests; expect pass. Refactor.
+  [x] **(Test First)** Write basic API Tests for profile endpoints (e.g., `/profiles/me/`).
+  [x] Define `MyProfileView` (`RetrieveUpdateAPIView`) with proper authentication.
+  [x] Run basic tests; expect pass. Refactor.
 
   ### 3.8 URL Routing (`urls.py`)
 
-  [ ] Define URL patterns in `api/v1/base_models/user/urls.py` for the chosen views (e.g., `path('profiles/me/', views.MyProfileView.as_view(), name='my-profile')`).
-  [ ] Include these URLs in `api/v1/base_models/urls.py`.
-  [ ] **(Test):** Rerun basic API tests.
+  [x] Define URL patterns in `api/v1/base_models/user/urls.py` for the chosen views (e.g., `path('profiles/me/', views.MyProfileView.as_view(), name='my-profile')`).
+  [x] Include these URLs in `api/v1/base_models/urls.py`.
+  [x] **(Test):** Rerun basic API tests.
 
   ### 3.9 API Endpoint Testing (`tests/api/test_endpoints.py`)
 
-  [ ] **(Test First - MyProfile)** Write tests for `GET` and `PUT`/`PATCH` on `/profiles/me/`. Test updating fields, including setting/unsetting `profile_picture`.
-  [ ] Implement view logic as needed.
-  [ ] Run MyProfile tests; expect pass. Refactor.
+  [x] **(Test First - MyProfile)** Write tests for `GET` and `PUT`/`PATCH` on `/profiles/me/`. Test updating fields, including setting/unsetting `profile_picture`.
+  [x] Implement view logic as needed.
+  [x] Run MyProfile tests; expect pass. Refactor.
 
 ## 4. Final Checks
 

@@ -1,16 +1,31 @@
 import pytest
-from django.contrib.admin.sites import AdminSite
-from django.contrib.auth import get_user_model
 from django.contrib import admin
+from django.contrib.auth import get_user_model
+from django.contrib.admin.sites import AdminSite
 
 from api.v1.base_models.user.admin import CustomUserAdmin, UserProfileInline
+from api.v1.base_models.user import admin as user_admin  # Import to trigger registration
 from api.v1.base_models.user.models import UserProfile
 
 User = get_user_model()
 
 
+@pytest.mark.django_db
 class TestUserAdmin:
-    """Test cases for User admin implementation."""
+    """Test cases for User admin configuration."""
+
+    def test_user_profile_inline_configuration(self):
+        """Test that UserProfileInline is properly configured."""
+        inline = UserProfileInline
+        assert not inline.can_delete
+        assert inline.verbose_name_plural == 'Profile'
+        assert inline.raw_id_fields == ('profile_picture',)
+
+    def test_custom_user_admin_configuration(self):
+        """Test that CustomUserAdmin is properly configured."""
+        admin_class = CustomUserAdmin
+        assert UserProfileInline in admin_class.inlines
+        assert len(admin_class.inlines) == 1
 
     @pytest.fixture(autouse=True)
     def setup(self):
