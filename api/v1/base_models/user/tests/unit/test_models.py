@@ -1,6 +1,7 @@
 import pytest
 from django.contrib.auth import get_user_model
 from api.v1.base_models.user.models import UserProfile
+from api.v1.base_models.user.tests.factories import UserFactory, UserProfileFactory
 
 User = get_user_model()
 
@@ -44,4 +45,9 @@ class TestUserProfile:
     def test_no_primary_organization(self, user):
         """No primary_organization field exists"""
         profile = user.profile
-        assert not hasattr(profile, 'primary_organization') 
+        assert not hasattr(profile, 'primary_organization')
+
+    def test_str_representation(self):
+        """Test __str__ method returns username."""
+        user = UserFactory(username='testuser')
+        assert str(user.profile) == 'testuser' 
