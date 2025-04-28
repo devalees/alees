@@ -30,8 +30,6 @@
     *   `job_title`, `employee_id`, `phone_number`, `profile_picture`, `manager`, `date_of_birth`, `employment_start_date`, `employment_end_date`, `employment_type`, etc.
 *   **Preferences Fields**:
     *   `language`, `timezone`, `notification_preferences` (JSONField).
-*   **Organizational Relationships**:
-    *   Implement using **one primary pattern** (Direct FK/M2M on Profile OR Dedicated Membership Model). *(Decision needed)*.
 *   **Custom Fields**:
     *   `custom_fields`: (JSONField, default=dict, blank=True) Stores values for dynamically defined custom fields relevant to user profiles.
 
