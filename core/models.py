@@ -1,9 +1,12 @@
 from django.db import models
+from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from crum import get_current_user
 
 __all__ = ['Timestamped', 'Auditable', 'TestTimestampedModel', 'TestAuditableModel']
+
+User = get_user_model()
 
 class Timestamped(models.Model):
     """
@@ -43,23 +46,21 @@ class Auditable(models.Model):
     Relies on middleware like django-crum to set the current user.
     """
     created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        verbose_name=_("Created By"),
-        related_name="+",  # No reverse relation needed
+        User,
+        verbose_name=_("Created by"),
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        editable=False,
+        related_name="%(class)s_created",
         help_text=_("User who created the record.")
     )
     updated_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        verbose_name=_("Updated By"),
-        related_name="+",  # No reverse relation needed
+        User,
+        verbose_name=_("Updated by"),
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        editable=False,
+        related_name="%(class)s_updated",
         help_text=_("User who last updated the record.")
     )
 
