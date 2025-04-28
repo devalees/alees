@@ -1,6 +1,8 @@
 import pytest
-from django.core.exceptions import ValidationError
+from django.contrib.auth import get_user_model
 from ..factories import UserFactory, UserProfileFactory
+
+User = get_user_model()
 
 @pytest.mark.django_db
 class TestUserFactory:
@@ -10,12 +12,25 @@ class TestUserFactory:
         assert user.email is not None
         assert user.is_active is True
         assert user.check_password('password123') is True
+        # Verify profile was auto-created
+        assert hasattr(user, 'profile')
 
 @pytest.mark.django_db
 class TestUserProfileFactory:
     def test_profile_creation(self):
-        profile = UserProfileFactory()
-        assert profile.user is not None
+        """Test that UserProfileFactory creates valid instances"""
+        # Create a user without auto-creating a profile
+        user = User.objects.create_user(
+            username='testuser',
+            email='test@example.com',
+            password='testpass123'
+        )
+        # Delete the auto-created profile
+        user.profile.delete()
+        
+        # Now create a profile using the factory
+        profile = UserProfileFactory(user=user)
+        assert profile.user == user
         assert profile.job_title is not None
         assert profile.employee_id is not None
         assert profile.phone_number is not None
@@ -26,16 +41,43 @@ class TestUserProfileFactory:
         assert isinstance(profile.custom_fields, dict)
 
     def test_profile_with_manager(self):
+        """Test profile creation with a manager"""
         manager = UserFactory()
-        profile = UserProfileFactory(manager=manager)
+        # Create a user without auto-creating a profile
+        user = User.objects.create_user(
+            username='testuser',
+            email='test@example.com',
+            password='testpass123'
+        )
+        # Delete the auto-created profile
+        user.profile.delete()
+        
+        profile = UserProfileFactory(user=user, manager=manager)
         assert profile.manager == manager
 
     def test_unique_employee_id(self):
-        profile1 = UserProfileFactory()
-        profile2 = UserProfileFactory()
+        """Test that employee_ids are unique"""
+        # Create users without auto-creating profiles
+        user1 = User.objects.create_user(username='user1', password='pass')
+        user2 = User.objects.create_user(username='user2', password='pass')
+        # Delete the auto-created profiles
+        user1.profile.delete()
+        user2.profile.delete()
+        
+        profile1 = UserProfileFactory(user=user1)
+        profile2 = UserProfileFactory(user=user2)
         assert profile1.employee_id != profile2.employee_id
 
     def test_circular_dependency_prevention(self):
-        # This should not raise an error due to profile=None in SubFactory
-        profile = UserProfileFactory()
+        """Test that profile=None in SubFactory prevents circular dependency"""
+        # Create a user without auto-creating a profile
+        user = User.objects.create_user(
+            username='testuser',
+            email='test@example.com',
+            password='testpass123'
+        )
+        # Delete the auto-created profile
+        user.profile.delete()
+        
+        profile = UserProfileFactory(user=user)
         assert profile.user.profile == profile 

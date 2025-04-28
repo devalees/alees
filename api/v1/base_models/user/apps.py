@@ -8,8 +8,5 @@ class UserConfig(AppConfig):
     verbose_name = 'User Management'
 
     def ready(self):
-        """Initialize app-specific configurations."""
-        try:
-            import api.v1.base_models.user.signals  # noqa
-        except ImportError:
-            pass 
+        """Import signals when the app is ready."""
+        import api.v1.base_models.user.signals  # noqa 

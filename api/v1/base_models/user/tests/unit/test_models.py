@@ -17,20 +17,19 @@ class TestUserProfile:
             password='testpass123'
         )
 
-    def test_can_create_user_profile(self, user):
-        """A UserProfile instance can be created and linked to a User instance"""
-        profile = UserProfile.objects.create(user=user)
-        assert profile.user == user
-        assert profile.pk is not None
+    def test_profile_auto_created(self, user):
+        """A UserProfile instance is automatically created when a User is created"""
+        assert hasattr(user, 'profile')
+        assert isinstance(user.profile, UserProfile)
+        assert user.profile.pk is not None
 
     def test_str_returns_username(self, user):
         """The __str__ method returns user.username"""
-        profile = UserProfile.objects.create(user=user)
-        assert str(profile) == user.username
+        assert str(user.profile) == user.username
 
     def test_has_timestamped_auditable_fields(self, user):
         """Inherited Timestamped/Auditable fields exist"""
-        profile = UserProfile.objects.create(user=user)
+        profile = user.profile
         assert hasattr(profile, 'created_at')
         assert hasattr(profile, 'updated_at')
         assert hasattr(profile, 'created_by')
@@ -38,11 +37,11 @@ class TestUserProfile:
 
     def test_profile_picture_is_nullable(self, user):
         """profile_picture field exists and is nullable"""
-        profile = UserProfile.objects.create(user=user)
+        profile = user.profile
         assert hasattr(profile, 'profile_picture')
         assert profile.profile_picture is None
 
     def test_no_primary_organization(self, user):
         """No primary_organization field exists"""
-        profile = UserProfile.objects.create(user=user)
+        profile = user.profile
         assert not hasattr(profile, 'primary_organization') 
