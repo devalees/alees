@@ -71,7 +71,7 @@ THIRD_PARTY_APPS = [
     # Data Handling & Utilities
     'import_export',            # For Data Import/Export framework (admin integration)
     'django_fsm',               # For State Machine / Workflow
-    'flags',             # For Feature Flags
+    'flags',                    # For Feature Flags
 
     # Search Integration
     'django_elasticsearch_dsl', # For Elasticsearch integration
@@ -90,6 +90,8 @@ LOCAL_APPS = [
     # API Apps (Adjust based on your final structure)
     # 'api.v1.auth', # New Auth app
     'api.v1.base_models.common.apps.CommonConfig',
+    'api.v1.base_models.common.currency.apps.CurrencyConfig',  # Add Currency app
+    'api.v1.base_models.common.address.apps.AddressConfig',  # Add Address app
     # 'api.v1.base_models.contact.apps.ContactConfig', # Renamed from user based on models
     'api.v1.base_models.organization.apps.OrganizationConfig',
     'api.v1.base_models.user.apps.UserConfig', # Keeps UserProfile separate
@@ -346,9 +348,23 @@ FEATURE_FLAGS_STORAGE = env('FEATURE_FLAGS_STORAGE', default='database') # Or 'r
 FEATURE_FLAGS_REDIS_URL = env('FEATURE_FLAGS_REDIS_URL', default='redis://localhost:6379/4') # Use DB 4
 # Default feature flags (can be overridden by DB/Redis storage)
 FLAGS = {
-    'AUTH_2FA_ENABLED': [{'condition': 'boolean', 'value': False}], # More descriptive key
-    # Add other feature flags here
+    'AUTH_2FA_ENABLED': [{'condition': 'boolean', 'value': False}],
+    'PROJECT_NEW_DASHBOARD': [{'condition': 'boolean', 'value': False}],
+    'BILLING_INVOICE_AUTO_GENERATE': [{'condition': 'boolean', 'value': False}],
 }
+
+# Flag conditions
+FLAG_CONDITIONS = {
+    'boolean': 'flags.conditions.boolean',
+    'user': 'flags.conditions.user',
+    'percent': 'flags.conditions.percent',
+    'path': 'flags.conditions.path',
+}
+
+# Flag template tags
+FLAG_TEMPLATE_TAGS = [
+    'flags.templatetags.flags',
+]
 
 # Security Settings (Set secure values in prod.py or via env vars)
 SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=False)

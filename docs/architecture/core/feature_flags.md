@@ -12,7 +12,7 @@ This document outlines the feature flags management strategy for the Alees ERP s
    - Configure in settings:
      ```python
      FEATURE_FLAGS_STORAGE = 'redis'
-     FEATURE_FLAGS_REDIS_URL = 'redis://localhost:6379/1'
+     FEATURE_FLAGS_REDIS_URL = 'redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/4'  # Using DB 4
      ```
 
 2. **Database Storage** (Default)
