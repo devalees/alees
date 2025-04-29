@@ -17,7 +17,7 @@ Provides API endpoints for user login (username/password) via JWT, token refresh
 
 **Primary Location(s):**
 *   Library Configuration: `settings.py`.
-*   API Views/Serializers/URLs: Dedicated `auth` app (`api/v1/auth/`) or within `user` app (`api/v1/base_models/user/`). Assume **new `auth` app**.
+*   API Views/Serializers/URLs: Dedicated `auth` app (`api/v1/base_models/comon/auth/`) or within `user` app (`api/v1/base_models/user/`). Assume **new `auth` app**.
 *   2FA Device Models: Provided by `django-otp`.
 *   API Key Models: Provided by `rest_framework_api_key`.
 
@@ -49,7 +49,7 @@ Provides API endpoints for user login (username/password) via JWT, token refresh
         # ... other settings like DEFAULT_PERMISSION_CLASSES ...
     }
     ```
-[ ] Create new Django app: `python manage.py startapp auth`. Add `'api.v1.auth'` to `INSTALLED_APPS`.
+[ ] Create new Django app: `python manage.py startapp auth`. Add `'api.v1.base_models.comon.auth'` to `INSTALLED_APPS`.
 [ ] Ensure `factory-boy` and `UserFactory` exist.
 
 ## 3. Implementation Steps (TDD Workflow)
@@ -63,7 +63,7 @@ Provides API endpoints for user login (username/password) via JWT, token refresh
   ### 3.2 JWT Token Endpoints (Login/Refresh)
 
   [ ] **(Test First)** Write **API Test(s)** (`auth/tests/api/test_token_endpoints.py`) for JWT obtain/refresh endpoints.
-  [ ] Create `api/v1/auth/urls.py`. Include `simplejwt` views (`TokenObtainPairView`, `TokenRefreshView`).
+  [ ] Create `api/v1/base_models/comon/auth/urls.py`. Include `simplejwt` views (`TokenObtainPairView`, `TokenRefreshView`).
   [ ] Include `auth.urls` in main `api/v1/urls.py` under the `auth/` prefix.
   [ ] Run tests; expect pass. Refactor simplejwt settings if needed.
 
