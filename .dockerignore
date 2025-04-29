@@ -1,0 +1,39 @@
+# .dockerignore
+
+# Git
+.git/
+.gitignore
+
+# Python cache/artefacts
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# OS files
+.DS_Store
+
+# Secrets / Local Config
+.env
+.env.*
+! .env.example # Keep example env files if you have them
+
+# IDE / Editor config
+.idea/
+.vscode/
+
+# Test / Coverage output
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Static/Media (if handled differently in prod builds)
+# media/ # Be careful if you NEED media in the image for some reason
+# staticfiles/
+
+# Node Modules (if you have frontend build steps)
+# node_modules/

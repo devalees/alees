@@ -1,49 +1,69 @@
-# Django Core
+# Django Core & API
 Django>=4.2.0,<4.3.0
 djangorestframework>=3.14.0,<3.15.0
 django-cors-headers>=4.3.0,<4.4.0
 django-filter>=23.3,<23.4
-django-crum>=0.7.0,<0.8.0
-django-extensions>=3.2.3,<3.3.0
-django-debug-toolbar>=4.2.0,<4.3.0
+drf-spectacular>=0.26.0,<0.27.0
 
-# Database
+# Database & ORM Extensions
 psycopg2-binary>=2.9.9,<2.10.0
 django-mptt>=0.14.0,<0.15.0
 
 # Authentication & Authorization
 djangorestframework-simplejwt>=5.3.0,<5.4.0
-django-allauth>=0.57.0,<0.58.0
+django-otp>=1.2.0,<1.3.0
+# django-otp-totp >= 1.2.0,<1.3.0
+# django-otp-static >= 1.2.0,<1.3.0
+djangorestframework-api-key>=3.0,<4.0
+qrcode[pil]>=7.4.2,<7.5.0
+django-crum>=0.7.0,<0.8.0
 
-# API Documentation
-drf-spectacular>=0.26.0,<0.27.0
-
-# Task Queue
+# Asynchronous Tasks & Scheduling
 celery>=5.3.0,<5.4.0
 redis>=5.0.0,<5.1.0
+django-celery-beat>=2.5.0,<2.6.0 # Added
+django-celery-results>=2.5.0,<2.6.0
+
+# Caching
 django-redis>=5.4.0,<5.5.0
+
+# Real-time / WebSockets
+channels>=4.0.0,<4.1.0
+channels-redis>=4.1.0,<4.2.0
 
 # Search
 elasticsearch>=8.10.0,<8.11.0
+elasticsearch-dsl>=8.9.0,<8.10.0 # Added (often needed with client)
+django-elasticsearch-dsl>=8.0,<8.1 # Added
 
-# Real-time
-channels>=4.0.0,<4.1.0
-channels-redis>=4.1.0,<4.2.0
+# Internationalization & Localization
+django-countries>=7.5.0,<7.6.0
+
+# Taxonomy & Attributes
+django-taggit>=4.0.0,<4.1.0
+
+# File Storage & Cloud
+django-storages>=1.13.2,<1.14.0 # Updated constraint
+boto3>=1.34.0,<1.35.0 # Consolidated
+
+# Workflow / State Machine
+django-fsm>=2.8.0,<2.9.0 # Added
+
+# Feature Flags
+django-flags>=5.0.0,<5.1.0
+
+# Data Handling & Import/Export
+django-import-export>=3.3.0,<3.4.0 # Added
+tablib[xlsx]>=3.5.0,<3.6.0 # Added
+django-phonenumber-field>=7.2.0,<7.3.0 # Added based on Contact model
+
+# Monitoring & Error Tracking
+django-prometheus>=2.3.0,<2.4.0 # Added
+sentry-sdk[django]>=1.30.0,<1.31.0 # Added
 
 # Utilities
 python-dotenv>=1.0.0,<1.1.0
 django-environ>=0.11.0,<0.12.0
 Pillow>=10.0.0,<10.1.0
 pycountry>=22.3.5,<22.4.0
-django-countries>=7.5.0,<7.6.0
-django-taggit>=4.0.0,<4.1.0
-
-# Flags
-django-flags>=5.0.0,<5.1.0
-
-# AWS
-boto3>=1.34.0,<1.35.0
-
-# File Storage
-django-storages>=1.13.2
-boto3>=1.26.0
+requests>=2.31.0,<2.32.0 # Added

@@ -4,132 +4,95 @@ import os
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = env('SECRET_KEY')
+# Ensure SECRET_KEY is loaded securely from environment ONLY
+SECRET_KEY = env('SECRET_KEY') # No default here! Must be set in prod env.
 
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
+# Ensure ALLOWED_HOSTS is loaded securely from environment ONLY
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS') # No default here! Must be set in prod env.
 
-# Database
+# Database (Ensure DATABASE_URL is set in prod env)
 DATABASES = {
     'default': env.db('DATABASE_URL'),
 }
+DATABASES['default']['ATOMIC_REQUESTS'] = True
 
-# File Storage Configuration
-DEFAULT_FILE_STORAGE = env('DJANGO_DEFAULT_FILE_STORAGE', 
-                          default='django.core.files.storage.FileSystemStorage')
-MEDIA_ROOT = env('MEDIA_ROOT', default=os.path.join(BASE_DIR, 'media'))
-MEDIA_URL = env('MEDIA_URL', default='/media/')
+# File Storage Configuration (Ensure DJANGO_DEFAULT_FILE_STORAGE is set, e.g., S3)
+# DEFAULT_FILE_STORAGE = env('DJANGO_DEFAULT_FILE_STORAGE') # Should be set in prod env
+# MEDIA_ROOT/URL only relevant if using FileSystemStorage, usually not needed with S3
+# MEDIA_ROOT = env('MEDIA_ROOT', default=os.path.join(BASE_DIR, 'media'))
+# MEDIA_URL = env('MEDIA_URL', default='/media/')
 
-# File Upload Validation Settings
-MAX_UPLOAD_SIZE = env.int('MAX_UPLOAD_SIZE', default=10 * 1024 * 1024)  # 10MB
-ALLOWED_MIME_TYPES = env.list('ALLOWED_MIME_TYPES', default=[
-    'image/jpeg',
-    'image/png',
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-])
+# Security Headers (Enforce HTTPS and other security headers)
+SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=True) # Default True for Prod
+SESSION_COOKIE_SECURE = env.bool('SESSION_COOKIE_SECURE', default=True) # Default True for Prod
+CSRF_COOKIE_SECURE = env.bool('CSRF_COOKIE_SECURE', default=True) # Default True for Prod
+SECURE_HSTS_SECONDS = env.int('SECURE_HSTS_SECONDS', default=31536000) # Default 1 year for Prod
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=True) # Default True for Prod
+SECURE_HSTS_PRELOAD = env.bool('SECURE_HSTS_PRELOAD', default=True) # Default True for Prod
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https') # If behind proxy/LB handling TLS
 
-# Security
-SECURE_SSL_REDIRECT = True
-SECURE_HSTS_SECONDS = 31536000  # 1 year
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
-X_FRAME_OPTIONS = 'DENY'
-SECURE_HSTS_SECONDS = 31536000  # 1 year
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
+# Email (Ensure production Email settings are set via env vars)
+EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
+# Ensure EMAIL_HOST, PORT, TLS, USER, PASSWORD are set in prod env
 
-# Email
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = env('EMAIL_HOST')
-EMAIL_PORT = env.int('EMAIL_PORT')
-EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS')
-EMAIL_HOST_USER = env('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD')
+# CORS (Ensure production frontend origins are set via env vars)
+CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS') # No default
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS') # Add your frontend domains here
 
-# CORS
-CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS')
-CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS')
-
-# Logging
+# Logging (Configure for production - e.g., INFO level, potentially JSON formatter, send to external service)
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
+        # Consider a JSON formatter for production log aggregation
+        # 'json': {
+        #     '()': 'pythonjsonlogger.jsonlogger.JsonFormatter',
+        #     'format': '%(asctime)s %(levelname)s %(name)s %(message)s %(pathname)s %(lineno)d',
+        # },
         'verbose': {
-            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
-            'style': '{',
+            'format': "[%(asctime)s] %(levelname)s [%(name)s:%(lineno)s] %(message)s",
+            'datefmt': "%d/%b/%Y %H:%M:%S"
         },
     },
     'handlers': {
-        'console': {
+        'console': { # Log to console for container stdout/stderr collection
             'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
+            'formatter': 'verbose', # Or 'json'
         },
+        # Add Sentry handler if using Sentry
+        # 'sentry': {
+        #     'level': 'ERROR',
+        #     'class': 'sentry_sdk.integrations.logging.EventHandler',
+        # },
     },
     'root': {
-        'handlers': ['console'],
-        'level': 'INFO',
+        'handlers': ['console'], # Add 'sentry' if configured
+        'level': env('ROOT_LOG_LEVEL', default='INFO'), # INFO level for prod often good
     },
     'loggers': {
         'django': {
             'handlers': ['console'],
-            'level': 'INFO',
+            'level': env('DJANGO_LOG_LEVEL', default='INFO'),
             'propagate': False,
         },
+        'django.security.DisallowedHost': { # Reduce noise from disallowed host errors
+             'handlers': ['console'],
+             'level': 'WARNING',
+             'propagate': False,
+         },
+        # Add specific app loggers if needed
     },
 }
 
-# Redis Cache Configuration for Production
-CACHES = {
-    'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': env('REDIS_URL'),
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'PASSWORD': env('REDIS_PASSWORD'),
-            'SOCKET_CONNECT_TIMEOUT': 5,
-            'SOCKET_TIMEOUT': 5,
-            'SSL': True,
-            'SSL_CERT_REQS': 'required',
-            'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
-        }
-    },
-    'permissions': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': env('REDIS_URL'),
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'PASSWORD': env('REDIS_PASSWORD'),
-            'SSL': True,
-            'SSL_CERT_REQS': 'required',
-        }
-    },
-    'api_responses': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': env('REDIS_URL'),
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'PASSWORD': env('REDIS_PASSWORD'),
-            'SSL': True,
-            'SSL_CERT_REQS': 'required',
-        }
-    }
-}
+# Cache (Ensure CACHE_URL etc. point to production Redis/Memcached)
+# CACHES = { ... } # Load production cache config via env.cache()
 
-# Redis Channel Layer Configuration for Production
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [env('REDIS_URL')],
-            'ssl': True,
-        },
-    },
-} 
+# Channels (Ensure REDIS_URL points to production Redis for channels)
+# CHANNEL_LAYERS = { ... } # Load production channel config via env vars/url
+
+# Static Files (Ensure STATIC_ROOT is set for collectstatic)
+# STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles_prod')
+
+# Celery (Should not run eagerly in production)
+CELERY_TASK_ALWAYS_EAGER = False
+CELERY_TASK_EAGER_PROPAGATES = False

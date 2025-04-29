@@ -1,0 +1,8 @@
+-r base.txt
+
+# Production WSGI Server (Example)
+gunicorn>=21.2.0,<22.0.0
+
+# Add other production-specific dependencies here
+# e.g., specific monitoring agents, different DB drivers if needed
+# psycopg2 >= 2.9.0, < 2.10.0 # Example non-binary driver if needed for build env

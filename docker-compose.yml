@@ -3,26 +3,31 @@ version: '3.8'
 services:
   postgres:
     image: postgres:14
+    container_name: alees_postgres # Optional: Explicit container name
     environment:
+      # Using .env file is primary way to set these for local dev
       POSTGRES_DB: ${DB_NAME:-alees}
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432" # Allow overriding port via .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d alees"]
+      # Test uses the actual DB_USER and DB_NAME if set in environment
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-alees}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7
+    container_name: alees_redis # Optional: Explicit container name
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379" # Allow overriding port via .env
     volumes:
       - redis_data:/data
+    # Password set directly in command if needed, or rely on config file
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-your-redis-password}
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-your-redis-password}", "ping"]
@@ -31,21 +36,25 @@ services:
       retries: 5
 
   api:
-    build: .
+    build:
+       context: .
+       dockerfile: Dockerfile
+    container_name: alees_api # Optional: Explicit container name
+    entrypoint: /app/entrypoint.sh # Use the updated entrypoint script
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
-      - .:/app
-      - /app/venv
+      - .:/app # Mount current directory to /app in container for development
+      - ./media:/app/media # Mount local media if using FileSystemStorage
     ports:
       - "8000:8000"
+    env_file:
+      - .env # Load environment variables from .env file
     environment:
+      # Ensure DJANGO_SETTINGS_MODULE defaults to dev
       - DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-config.settings.dev}
-      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-your-secret-key-here}
-      - DATABASE_URL=postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-alees}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-your-redis-password}@redis:6379/0
-      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-your-redis-password}@redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-your-redis-password}@redis:6379/0
-      - DEBUG=${DEBUG:-1}
+      # --- ADDED: Signal this service to run migrations ---
+      - RUN_MIGRATIONS=true
+      # Other variables (DATABASE_URL, REDIS_URL, etc.) loaded from .env file
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,58 +62,78 @@ services:
         condition: service_healthy
 
   celery:
-    build: .
-    command: celery -A config worker -l INFO
+    build:
+       context: .
+       dockerfile: Dockerfile
+    container_name: alees_celery # Optional: Explicit container name
+    entrypoint: /app/entrypoint.sh # Use the updated entrypoint script
+    # Use the worker command appropriate for your Celery app setup
+    command: celery -A config.celery_app worker -l INFO # Ensure 'config.celery_app' is correct path
     volumes:
       - .:/app
-      - /app/venv
+    env_file:
+      - .env
     environment:
       - DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-config.settings.dev}
-      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-your-secret-key-here}
-      - DATABASE_URL=postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-alees}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-your-redis-password}@redis:6379/0
-      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-your-redis-password}@redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-your-redis-password}@redis:6379/0
+      # RUN_MIGRATIONS is NOT set here, so entrypoint skips migrate
+      # DATABASE_URL, REDIS URLs for Broker/Backend read from .env by settings
     depends_on:
-      - redis
-      - api
+      redis:
+        condition: service_healthy
+      postgres: # Celery often needs DB access via Django ORM
+        condition: service_healthy
 
   celery-beat:
-    build: .
-    command: celery -A config beat -l INFO
+    build:
+       context: .
+       dockerfile: Dockerfile
+    container_name: alees_celery_beat # Optional: Explicit container name
+    entrypoint: /app/entrypoint.sh # Use the updated entrypoint script
+    # Add the scheduler argument for django-celery-beat
+    command: celery -A config.celery_app beat -l INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler
     volumes:
       - .:/app
-      - /app/venv
+    env_file:
+      - .env
     environment:
       - DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-config.settings.dev}
-      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-your-secret-key-here}
-      - DATABASE_URL=postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-alees}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-your-redis-password}@redis:6379/0
-      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-your-redis-password}@redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-your-redis-password}@redis:6379/0
+      # RUN_MIGRATIONS is NOT set here, so entrypoint skips migrate
+      # DATABASE_URL, REDIS URLs read from .env by settings
     depends_on:
-      - redis
-      - api
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
 
   test:
     build:
       context: .
-      dockerfile: Dockerfile
-    command: pytest -v --cov=. --cov-report=term-missing --cov-data-file=/app/coverage/.coverage
+      dockerfile: Dockerfile # Assumes the same Dockerfile builds a testable image
+    container_name: alees_test # Optional: Explicit container name
+    entrypoint: /app/entrypoint.sh # Use the updated entrypoint script
+    # Override command to run tests
+    command: pytest -v --cov=. --cov-report=term-missing
     volumes:
-      - .:/app
+      - .:/app # Mount code for coverage mapping etc.
+    env_file:
+      - .env.test # Optional: Load test specifics from a file if it exists
     environment:
+      # Explicitly use test settings
       - DJANGO_SETTINGS_MODULE=config.settings.test
-      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-your-secret-key-here}
-      - TEST_DB_NAME=${TEST_DB_NAME:-alees_test}
+      # Pass individual DB components for test.py to use
+      - TEST_DB_NAME=${TEST_DB_NAME:-test_alees}
       - TEST_DB_USER=${TEST_DB_USER:-postgres}
       - TEST_DB_PASSWORD=${TEST_DB_PASSWORD:-postgres}
-      - TEST_DB_HOST=postgres
+      - TEST_DB_HOST=postgres # Service name
       - TEST_DB_PORT=5432
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-your-redis-password}@redis:6379/0
+      # Keep CELERY overrides for testing with memory backend
+      - CELERY_TASK_ALWAYS_EAGER=True
+      - CELERY_TASK_EAGER_PROPAGATES=True
       - CELERY_BROKER_URL=memory://
       - CELERY_RESULT_BACKEND=cache+memory://
+      # Ensure DEBUG is explicitly False for tests
       - DEBUG=0
+      # RUN_MIGRATIONS is NOT set here, but entrypoint handles test migration separately
     depends_on:
       postgres:
         condition: service_healthy
