@@ -4,7 +4,8 @@ from .views import (
     CustomTokenObtainPairView,
     TOTPSetupView,
     TOTPVerifyView,
-    TOTPDisableView
+    TOTPDisableView,
+    PasswordChangeView
 )
 
 app_name = 'auth'
@@ -15,4 +16,5 @@ urlpatterns = [
     path('2fa/totp/setup/', TOTPSetupView.as_view(), name='2fa-totp-setup'),
     path('2fa/totp/verify/', TOTPVerifyView.as_view(), name='2fa-totp-verify'),
     path('2fa/totp/disable/', TOTPDisableView.as_view(), name='2fa-totp-disable'),
+    path('password/change/', PasswordChangeView.as_view(), name='password-change'),
 ]

@@ -34,3 +34,20 @@ class TOTPVerifySerializer(serializers.Serializer):
         
         attrs['device'] = device
         return attrs
+
+class PasswordChangeSerializer(serializers.Serializer):
+    """Serializer for password change endpoint."""
+    old_password = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True)
+
+    def validate_old_password(self, value):
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError('Invalid old password')
+        return value
+
+    def validate_new_password(self, value):
+        # Add any password validation rules here if needed
+        if len(value) < 8:
+            raise serializers.ValidationError('Password must be at least 8 characters long')
+        return value

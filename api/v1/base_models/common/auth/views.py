@@ -7,13 +7,14 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from django_otp.plugins.otp_totp.models import TOTPDevice
-from .serializers import TOTPVerifySerializer
+from .serializers import TOTPVerifySerializer, PasswordChangeSerializer
 from .permissions import IsAuthenticatedOrHasAPIKey
 import qrcode
 import qrcode.image.svg
 from io import BytesIO
 import base64
 from django.contrib.auth import get_user_model
+from rest_framework import generics
 
 User = get_user_model()
 
@@ -125,5 +126,23 @@ class TOTPDisableView(APIView):
 
         return Response(
             {'message': '2FA disabled successfully'},
+            status=status.HTTP_200_OK
+        )
+
+class PasswordChangeView(generics.GenericAPIView):
+    """View for changing user password."""
+    permission_classes = [IsAuthenticated]
+    serializer_class = PasswordChangeSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        user = request.user
+        user.set_password(serializer.validated_data['new_password'])
+        user.save()
+        
+        return Response(
+            {'message': 'Password changed successfully'},
             status=status.HTTP_200_OK
         )
