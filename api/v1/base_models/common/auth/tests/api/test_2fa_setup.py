@@ -9,7 +9,7 @@ from api.v1.base_models.user.tests.factories import UserFactory
 class TestTOTPSetupView:
     def test_setup_totp_unauthenticated(self):
         client = APIClient()
-        url = reverse('v1:auth:totp-setup')
+        url = reverse('v1:auth:2fa-totp-setup')
         response = client.post(url)
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
@@ -17,7 +17,7 @@ class TestTOTPSetupView:
         client = APIClient()
         user = UserFactory()
         client.force_authenticate(user=user)
-        url = reverse('v1:auth:totp-setup')
+        url = reverse('v1:auth:2fa-totp-setup')
         response = client.post(url)
         
         assert response.status_code == status.HTTP_200_OK
@@ -33,7 +33,7 @@ class TestTOTPSetupView:
 class TestTOTPVerifyView:
     def test_verify_totp_unauthenticated(self):
         client = APIClient()
-        url = reverse('v1:auth:totp-verify')
+        url = reverse('v1:auth:2fa-totp-verify')
         response = client.post(url, {'token': '123456'})
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
@@ -41,7 +41,7 @@ class TestTOTPVerifyView:
         client = APIClient()
         user = UserFactory()
         client.force_authenticate(user=user)
-        url = reverse('v1:auth:totp-verify')
+        url = reverse('v1:auth:2fa-totp-verify')
         response = client.post(url, {'token': '123456'})
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
@@ -51,11 +51,11 @@ class TestTOTPVerifyView:
         client.force_authenticate(user=user)
         
         # Setup TOTP first
-        setup_url = reverse('v1:auth:totp-setup')
+        setup_url = reverse('v1:auth:2fa-totp-setup')
         client.post(setup_url)
         
         # Try to verify with invalid token
-        url = reverse('v1:auth:totp-verify')
+        url = reverse('v1:auth:2fa-totp-verify')
         response = client.post(url, {'token': '123456'})
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         
@@ -69,7 +69,7 @@ class TestTOTPVerifyView:
         client.force_authenticate(user=user)
         
         # Setup TOTP first
-        setup_url = reverse('v1:auth:totp-setup')
+        setup_url = reverse('v1:auth:2fa-totp-setup')
         setup_response = client.post(setup_url)
         device = TOTPDevice.objects.get(user=user)
         
@@ -77,7 +77,7 @@ class TestTOTPVerifyView:
         mocker.patch.object(TOTPDevice, 'verify_token', return_value=True)
         
         # Verify with (mocked) valid token
-        url = reverse('v1:auth:totp-verify')
+        url = reverse('v1:auth:2fa-totp-verify')
         response = client.post(url, {'token': '123456'})
         assert response.status_code == status.HTTP_200_OK
         

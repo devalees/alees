@@ -13,6 +13,9 @@ import qrcode
 import qrcode.image.svg
 from io import BytesIO
 import base64
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     """
@@ -87,3 +90,40 @@ class TOTPVerifyView(APIView):
         device.save()
         
         return Response({'message': '2FA enabled successfully'}, status=status.HTTP_200_OK)
+
+class TOTPDisableView(APIView):
+    """
+    View to disable TOTP 2FA for the authenticated user.
+    Requires password confirmation.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        password = request.data.get('password')
+        if not password:
+            return Response(
+                {'error': 'Password is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Verify password
+        if not request.user.check_password(password):
+            return Response(
+                {'error': 'Invalid password'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if 2FA is enabled
+        if not TOTPDevice.objects.filter(user=request.user, confirmed=True).exists():
+            return Response(
+                {'error': '2FA is not enabled'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Delete all TOTP devices for the user
+        TOTPDevice.objects.filter(user=request.user).delete()
+
+        return Response(
+            {'message': '2FA disabled successfully'},
+            status=status.HTTP_200_OK
+        )
