@@ -1,6 +1,3 @@
-Okay, perfect. Let's start generating the detailed implementation steps using the template we finalized. We'll begin with the `Timestamped` Abstract Base Model, based on the `timestamped_prd.md` you just provided.
-
---- START OF FILE timestamped_implementation_steps.md ---
 
 # Timestamped - Implementation Steps
 

@@ -1,6 +1,3 @@
-Okay, here are the implementation steps for the `Notification` System, based on the simplified PRD. This includes the `Notification` model, the optional `NotificationTemplate` model, the central service function, and integration points with Celery and User Preferences.
-
---- START OF FILE notification_implementation_steps.md ---
 
 # Notification System - Implementation Steps
 

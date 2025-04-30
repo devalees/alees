@@ -1,6 +1,3 @@
-Okay, here are the implementation steps for the `Warehouse` model, based on its simplified PRD including custom fields, following the TDD checklist format.
-
---- START OF FILE warehouse_implementation_steps.md ---
 
 # Warehouse - Implementation Steps
 

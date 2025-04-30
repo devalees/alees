@@ -1,8 +1,3 @@
-Okay, let's generate the implementation steps for the `Currency` model based on its refined PRD, following the TDD checklist format.
-
-This includes the model definition, factory, admin setup, initial data loading considerations, and basic API (likely read-only for general users).
-
---- START OF FILE currency_implementation_steps.md ---
 
 # Currency - Implementation Steps
 

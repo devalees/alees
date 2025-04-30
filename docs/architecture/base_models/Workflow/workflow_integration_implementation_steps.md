@@ -1,8 +1,3 @@
-Okay, let's generate the implementation steps for integrating the **Workflow/State Machine** capability, assuming the use of `django-fsm` as outlined in the simplified PRD.
-
-This isn't about creating a single "Workflow model" but rather about setting up the library and *applying* state machine logic to specific business models (like `Product`, `Invoice`, etc.) as they are developed or enhanced. Therefore, these steps are more about framework setup and providing guidelines/examples for developers implementing workflows on their models.
-
---- START OF FILE workflow_integration_steps.md ---
 
 # Workflow/State Machine Integration - Implementation Steps
 

@@ -1,12 +1,3 @@
-Okay, let's generate the implementation steps for the **Search System Integration**. This focuses on setting up the integration with an external search engine (like Elasticsearch/OpenSearch) and implementing the indexing pipeline and search API endpoint.
-
-**Assumptions:**
-
-*   **Search Engine Choice:** Elasticsearch or OpenSearch is chosen. Steps will use generic concepts applicable to both.
-*   **Integration Library:** `django-elasticsearch-dsl` is chosen for simplifying index definition and model synchronization. If using direct `elasticsearch-py`, the signal handlers and indexing logic would be more manual.
-*   **Asynchronous Indexing:** Celery will be used for queuing index updates triggered by signals.
-
---- START OF FILE search_implementation_steps.md ---
 
 # Search System Integration - Implementation Steps
 

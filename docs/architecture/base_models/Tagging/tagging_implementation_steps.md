@@ -1,6 +1,3 @@
-Okay, let's generate the implementation steps for integrating the `Tagging` system, primarily using the `django-taggit` library. This focuses on setting up the library and adding tagging capability to other models. We will also include the *optional* steps for creating a custom `Tag` model with `custom_fields`, as requested in the PRD.
-
---- START OF FILE tagging_implementation_steps.md ---
 
 # Tagging System Integration - Implementation Steps
 

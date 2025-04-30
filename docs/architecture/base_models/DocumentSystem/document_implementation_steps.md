@@ -1,11 +1,3 @@
-Okay, let's generate the implementation steps for the `Document` model (representing the Document System's core entity). This builds upon `FileStorage`, `Category`, `Status`, and the base mixins, and incorporates choices regarding linking to parent objects and versioning.
-
-**Decisions Made for these Steps:**
-
-1.  **Linking Fields (3.1):** Assume **GenericForeignKey** (`content_type`, `object_id`, `content_object`) for maximum flexibility in linking Documents to various parent objects.
-2.  **Versioning (3.3):** Assume the **simplest versioning**: A `version` integer field incremented manually or by API logic when a new version (new `Document` record pointing to a new `FileStorage`) is created. No explicit `previous_version` link initially.
-
---- START OF FILE document_implementation_steps.md ---
 
 # Document System (Document Model) - Implementation Steps
 

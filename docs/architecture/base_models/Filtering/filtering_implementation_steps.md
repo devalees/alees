@@ -1,12 +1,3 @@
-Okay, let's generate the implementation steps for the **Advanced Filtering System**. This is a complex component, and these steps will focus on setting up the custom `FilterBackend`, the parser, and integrating it, assuming **Option A (JSON in Query Parameter)** for syntax and **deferring the `StoredFilter` model** initially.
-
-**Crucial Prerequisite Decisions:**
-
-*   **Syntax Choice (3.2):** Explicitly confirm Option A (JSON in URL param `?filter={...}`) is the chosen syntax.
-*   **Stored Filters (3.4):** Confirm that the `StoredFilter` model and its associated API/logic are deferred (not part of this initial implementation).
-*   **Allowed Fields Config (3.5):** Decide *how* allowed fields per model will be configured (e.g., a setting in `settings.py`, an attribute on the ViewSet, a separate registry). Steps assume a dictionary in settings initially.
-
---- START OF FILE advanced_filtering_implementation_steps.md ---
 
 # Advanced Filtering System - Implementation Steps
 

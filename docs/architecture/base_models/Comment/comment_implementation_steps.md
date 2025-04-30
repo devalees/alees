@@ -1,6 +1,3 @@
-Okay, let's generate the implementation steps for the `Comment` model. This involves setting up Generic Foreign Keys, basic threading via a self-referential FK, linking to `FileStorage` for attachments, and integrating the standard base mixins.
-
---- START OF FILE comment_implementation_steps.md ---
 
 # Comment - Implementation Steps
 

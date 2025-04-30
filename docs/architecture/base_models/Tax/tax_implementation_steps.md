@@ -1,6 +1,4 @@
-Okay, let's generate the implementation steps for the `Tax` related models (`TaxJurisdiction`, `TaxCategory`, `TaxRate`), based on the simplified PRD focusing on definitions and including custom fields. This involves potentially using `django-mptt` for jurisdictions.
 
---- START OF FILE tax_implementation_steps.md ---
 
 # Tax Definition Models - Implementation Steps
 

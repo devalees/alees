@@ -1,6 +1,4 @@
-Okay, let's generate the implementation steps for the generic, hierarchical `Category` model, based on its PRD and using the TDD checklist format. This involves integrating `django-mptt`.
 
---- START OF FILE category_implementation_steps.md ---
 
 # Category - Implementation Steps
 

@@ -1,12 +1,3 @@
-Okay, generating the implementation steps for the **Video Meeting Integration**. This focuses on setting up the ERP-side models (`Meeting`, `MeetingParticipant`) and the integration points (API calls, webhooks) assuming a third-party provider handles the actual video conferencing.
-
-**Crucial Prerequisites/Decisions:**
-
-*   **External Provider Choice:** A specific provider (Zoom, Vonage, Daily.co, etc.) must be selected, as API calls and webhook payloads will be specific to that provider. Steps below are generic placeholders.
-*   **Recording Storage:** Decide on Option A (store URLs) or Option B (download to `FileStorage`). Steps assume **Option A (store URLs)** initially for simplicity.
-*   **Calendar Integration:** Steps assume this is optional/deferred.
-
---- START OF FILE videomeeting_implementation_steps.md ---
 
 # Video Meeting Integration - Implementation Steps
 

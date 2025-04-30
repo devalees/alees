@@ -1,8 +1,3 @@
-Okay, let's generate the implementation steps for the `AuditLogging` system, centered around the `AuditLog` model and the signal-based capturing mechanism, based on its PRD and using the TDD checklist format.
-
-**Note:** Implementing the `changes` calculation efficiently and comprehensively within signal receivers can be complex. Libraries like `django-simple-history` handle this internally, but building it custom requires careful state comparison. These steps assume a simplified approach initially, potentially deferring complex diffing for UPDATEs.
-
---- START OF FILE auditlogging_implementation_steps.md ---
 
 # Audit Logging System - Implementation Steps
 

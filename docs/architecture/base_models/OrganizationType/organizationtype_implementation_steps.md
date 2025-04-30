@@ -1,6 +1,3 @@
-Okay, here are the implementation steps for the `OrganizationType` model, based on its PRD and using the TDD checklist format. This is a relatively simple reference data model.
-
---- START OF FILE organizationtype_implementation_steps.md ---
 
 # OrganizationType - Implementation Steps
 

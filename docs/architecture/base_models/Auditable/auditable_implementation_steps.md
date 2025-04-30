@@ -1,8 +1,3 @@
-Okay, let's generate the implementation steps for the `Auditable` Abstract Base Model, following the refined PRD and the agreed-upon checklist format.
-
-This involves defining the abstract model and, crucially, setting up the mechanism (middleware + `save()` override) to automatically populate the `created_by` and `updated_by` fields. We'll use `django-crum` (Current Request User Middleware) as the recommended approach for accessing the current user reliably.
-
---- START OF FILE auditable_implementation_steps.md ---
 
 # Auditable - Implementation Steps
 

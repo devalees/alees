@@ -1,6 +1,4 @@
-Okay, here are the implementation steps for the `UnitOfMeasure` (UoM) model, based on its simplified PRD including custom fields, following the TDD checklist format.
 
---- START OF FILE uom_implementation_steps.md ---
 
 # UnitOfMeasure (UoM) - Implementation Steps
 

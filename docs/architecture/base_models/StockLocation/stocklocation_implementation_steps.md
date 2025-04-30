@@ -1,6 +1,3 @@
-Okay, let's generate the implementation steps for the `StockLocation` model. This builds upon the `Warehouse` model and utilizes `django-mptt` for the internal hierarchical structure.
-
---- START OF FILE stocklocation_implementation_steps.md ---
 
 # StockLocation - Implementation Steps
 

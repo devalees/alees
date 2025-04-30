@@ -1,4 +1,3 @@
---- START OF FILE auth_api_implementation_steps.md (Revised for API Keys) ---
 
 # Authentication API - Implementation Steps (Revised for API Keys)
 

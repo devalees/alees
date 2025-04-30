@@ -1,8 +1,3 @@
-Okay, let's generate the implementation steps for the `Address` model, based on its simplified PRD (including custom fields) and following the TDD checklist format.
-
-This covers the model for physical addresses, its fields, factory, admin, basic API (likely read-only or managed via related objects), and country code considerations.
-
---- START OF FILE address_implementation_steps.md ---
 
 # Address - Implementation Steps
 

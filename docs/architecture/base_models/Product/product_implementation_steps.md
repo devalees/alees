@@ -1,6 +1,4 @@
-Okay, generating the implementation steps for the `Product` model. This model integrates several previously defined concepts: base mixins, Org Scoping, Category, UoM, Status (reference), Tagging, and Custom Fields.
 
---- START OF FILE product_implementation_steps.md ---
 
 # Product - Implementation Steps
 

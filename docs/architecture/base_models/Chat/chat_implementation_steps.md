@@ -1,8 +1,3 @@
-Okay, generating the implementation steps for the **Chat System**. This is a complex feature involving multiple models, real-time communication via Django Channels, and integration with several other systems. These steps outline the core setup.
-
-**Assumption:** `django-channels` and `channels-redis` will be used.
-
---- START OF FILE chat_implementation_steps.md ---
 
 # Chat System - Implementation Steps
 
