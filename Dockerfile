@@ -40,7 +40,6 @@ COPY --chown=app:app requirements/ /app/requirements/
 # Includes base, dev (for debug toolbar etc.), and test (for the test service)
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements/base.txt && \
-    pip install --no-cache-dir -r requirements/dev.txt && \
     pip install --no-cache-dir -r requirements/test.txt
 
 # Copy the entrypoint script and make it executable

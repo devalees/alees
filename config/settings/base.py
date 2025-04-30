@@ -55,7 +55,7 @@ THIRD_PARTY_APPS = [
     'rest_framework_simplejwt', # For JWT
     'django_otp',               # Core OTP library
     'django_otp.plugins.otp_totp', # TOTP plugin (must be listed)
-    'rest_framework_api_key',   # For API Keys
+    'rest_framework_api_key', # For API Keys
 
     # Async Tasks & Scheduling
     'django_celery_beat',       # DB Scheduler for Celery (Automation)
@@ -88,7 +88,7 @@ LOCAL_APPS = [
     'core.apps.CoreConfig',
 
     # API Apps (Adjust based on your final structure)
-    # 'api.v1.auth', # New Auth app
+    'api.v1.base_models.common.auth.apps.AuthConfig', # New Auth app
     'api.v1.base_models.common.apps.CommonConfig',
     'api.v1.base_models.common.currency.apps.CurrencyConfig',  # Add Currency app
     'api.v1.base_models.common.address.apps.AddressConfig',  # Add Address app
@@ -207,23 +207,22 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-        # 'rest_framework_api_key.authentication.APIKeyAuthentication', # Underscores correct here
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated', # Default to requiring auth
+        'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10,
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
-        # Add 'core.filtering.backends.AdvancedFilterBackend' here when implemented
     ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': env.int('API_PAGE_SIZE', default=20), # Use env var, increase default maybe
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema', # For drf-spectacular
-    # Add custom exception handler when created
-    # 'EXCEPTION_HANDLER': 'core.exceptions.custom_exception_handler',
 }
+
+# API Key Settings
+API_KEY_CUSTOM_HEADER = "X-Api-Key"
 
 # JWT Settings (djangorestframework-simplejwt)
 SIMPLE_JWT = {
@@ -258,14 +257,8 @@ SIMPLE_JWT = {
     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1), # Not used unless SLIDING tokens enabled
 }
 
-# API Key Settings (djangorestframework-api-key)
-REST_FRAMEWORK_API_KEY = {
-    'HEADER_NAME': 'HTTP_X_API_KEY', # META key for 'X-API-Key' header
-    'CLIENT_ID_HEADER_NAME': None, # Not using client ID header
-}
-
-# OTP Settings (django-otp)
-OTP_TOTP_ISSUER = env('OTP_TOTP_ISSUER', default='Alees ERP') # Name shown in Authenticator apps
+# OTP Settings
+OTP_TOTP_ISSUER = env('OTP_TOTP_ISSUER', default='Alees') # Set your organization name
 
 # CORS Settings
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[

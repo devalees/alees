@@ -22,12 +22,15 @@ if [ "$DJANGO_SETTINGS_MODULE" = "config.settings.test" ]; then
 fi
 
 # Apply database migrations
-if [ "$DJANGO_SETTINGS_MODULE" = "config.settings.test" ]; then
-  echo "Running in test mode"
+if [ "$RUN_MIGRATIONS" = "true" ] || [ "$DJANGO_SETTINGS_MODULE" = "config.settings.test" ]; then
+  echo "Running migrations..."
   python manage.py migrate
-  exec "$@"
-else
-  python manage.py migrate
+fi
+
+# Collect static files if not in test mode
+if [ "$DJANGO_SETTINGS_MODULE" != "config.settings.test" ]; then
   python manage.py collectstatic --noinput
-  exec "$@"
-fi 
+fi
+
+# Execute the command
+exec "$@" 

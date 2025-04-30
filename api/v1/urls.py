@@ -1,11 +1,13 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
+
+app_name = 'v1'
 
 # Create a router for API endpoints
 router = DefaultRouter()
 
-# Include base_models URLs
+# Include base_models URLs without namespace to allow nested namespaces to be directly under v1
 base_models_urls = [
     path('', include('api.v1.base_models.urls')),
 ]
@@ -16,9 +18,10 @@ features_urls = [
 ]
 
 urlpatterns = [
-    # API documentation
+    # API Schema documentation
     path('schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('docs/', SpectacularSwaggerView.as_view(url_name='v1:schema'), name='swagger-ui'),
+    path('redoc/', SpectacularRedocView.as_view(url_name='v1:schema'), name='redoc'),
     
     # API endpoints
     path('', include(base_models_urls)),
