@@ -23,11 +23,11 @@ Central model for individual contacts (`Contact`) with optional link to `Organiz
 
 ## 2. Prerequisites
 
-[x] Verify prerequisite models/mixins (`Timestamped`, `Auditable`, `Address`) are implemented and migrated.
-[x] Ensure the `contact` app structure exists and is added to `INSTALLED_APPS`.
-[x] Install required libraries: `pip install django-taggit django-phonenumber-field`. Add to `INSTALLED_APPS`.
-[x] Ensure `factory-boy` setup. Factories for `Address`, `User` exist.
-[x] Define TYPE choices (e.g., in `contact/choices.py`).
+[ ] Verify prerequisite models/mixins (`Timestamped`, `Auditable`, `Address`) are implemented and migrated.
+[ ] Ensure the `contact` app structure exists and is added to `INSTALLED_APPS`.
+[ ] Install required libraries: `pip install django-taggit django-phonenumber-field`. Add to `INSTALLED_APPS`.
+[ ] Ensure `factory-boy` setup. Factories for `Address`, `User` exist.
+[ ] Define TYPE choices (e.g., in `contact/choices.py`).
 
 ## 3. Implementation Steps (TDD Workflow)
 
@@ -35,35 +35,35 @@ Central model for individual contacts (`Contact`) with optional link to `Organiz
 
   ### 3.1 Model Definitions (`models.py`)
 
-  [x] **(Test First - Contact & Channels)** Write Unit Tests verifying all models (`Contact`, `ContactEmailAddress`, `ContactPhoneNumber`, `ContactAddress`). Ensure `Contact.linked_organization` FK exists and is **nullable**.
-  [x] Define the `Contact` model *first* in `api/v1/base_models/contact/models.py`. Ensure `linked_organization` uses `null=True, blank=True`. Include `TaggableManager`.
-  [x] Define the communication channel models (`ContactEmailAddress`, `ContactPhoneNumber`, `ContactAddress`) *after* `Contact`. Ensure `ContactAddress` links correctly to `common.Address`.
-  [x] Run tests for all models; expect pass. Refactor.
+  [ ] **(Test First - Contact & Channels)** Write Unit Tests verifying all models (`Contact`, `ContactEmailAddress`, `ContactPhoneNumber`, `ContactAddress`). Ensure `Contact.linked_organization` FK exists and is **nullable**.
+  [ ] Define the `Contact` model *first* in `api/v1/base_models/contact/models.py`. Ensure `linked_organization` uses `null=True, blank=True`. Include `TaggableManager`.
+  [ ] Define the communication channel models (`ContactEmailAddress`, `ContactPhoneNumber`, `ContactAddress`) *after* `Contact`. Ensure `ContactAddress` links correctly to `common.Address`.
+  [ ] Run tests for all models; expect pass. Refactor.
 
   ### 3.2 Single Primary Logic (Model `save` override)
 
-  [x] **(Test First)** Write Integration Tests verifying single primary logic for Email, Phone, and Address models.
-  [x] Implement the `save()` override method on channel models.
-  [x] Run single primary logic tests; expect pass. Refactor.
+  [ ] **(Test First)** Write Integration Tests verifying single primary logic for Email, Phone, and Address models.
+  [ ] Implement the `save()` override method on channel models.
+  [ ] Run single primary logic tests; expect pass. Refactor.
 
   ### 3.3 Factory Definitions (`tests/factories.py`)
 
-  [x] Define `ContactFactory`. Ensure `linked_organization` is `None` by default.
-  [x] Define factories for `ContactEmailAddress`, `ContactPhoneNumber`, `ContactAddress`.
-  [x] **(Test)** Write simple tests ensuring factories create valid instances.
+  [ ] Define `ContactFactory`. Ensure `linked_organization` is `None` by default.
+  [ ] Define factories for `ContactEmailAddress`, `ContactPhoneNumber`, `ContactAddress`.
+  [ ] **(Test)** Write simple tests ensuring factories create valid instances.
 
   ### 3.4 Admin Registration (`admin.py`)
 
-  [x] Create `api/v1/base_models/contact/admin.py`.
-  [x] Define `InlineModelAdmin` classes for channels.
-  [x] Define `ContactAdmin` including the inlines. Use `raw_id_fields` for `linked_organization`.
-  [x] **(Manual Test):** Verify Admin interface works.
+  [ ] Create `api/v1/base_models/contact/admin.py`.
+  [ ] Define `InlineModelAdmin` classes for channels.
+  [ ] Define `ContactAdmin` including the inlines. Use `raw_id_fields` for `linked_organization`.
+  [ ] **(Manual Test):** Verify Admin interface works.
 
   ### 3.5 Migrations
 
-  [x] Run `python manage.py makemigrations contact`.
-  [x] **Review generated migration file(s) carefully.** Ensure `linked_organization_id` column is **nullable**.
-  [x] Run `python manage.py migrate` locally.
+  [ ] Run `python manage.py makemigrations contact`.
+  [ ] **Review generated migration file(s) carefully.** Ensure `linked_organization_id` column is **nullable**.
+  [ ] Run `python manage.py migrate` locally.
 
   ### 3.6 Serializer Definition (`serializers.py`) - ***Initial Version***
 

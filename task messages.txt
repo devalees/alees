@@ -1,40 +1,28 @@
 === FOR IMPLEMENTATION ===
 based on project rules and attached implementation steps file do the following:
-## 2. Prerequisites
+## 3. Implementation Steps (TDD Workflow)
 
-[ ] Verify `User` and `UserProfile` models are implemented and migrated.
-[ ] **Install Libraries:** `pip install djangorestframework-simplejwt django-otp qrcode[pil] djangorestframework-api-key`.
-[ ] Add `'rest_framework_simplejwt'`, `'django_otp'`, `'django_otp.plugins.otp_totp'`, and `'rest_framework_api_key'` to `INSTALLED_APPS`.
-[ ] Add `'django_otp.middleware.OTPMiddleware'` to `MIDDLEWARE` (after `AuthenticationMiddleware`).
-[ ] **Configure `simplejwt`:** Set up `SIMPLE_JWT` settings (token lifetimes, etc.) as previously defined.
-[ ] **Configure `django-otp`:** Set `OTP_TOTP_ISSUER` as previously defined.
-[ ] **Configure `djangorestframework-api-key`:** Specify the custom header name in `settings.py`.
-    ```python
-    # config/settings/base.py
-    REST_FRAMEWORK_API_KEY = {
-        'HEADER_NAME': 'HTTP_X_API_KEY', # DRF converts X-Api-Key header to this META key
-        'CLIENT_ID_HEADER_NAME': None, # Not using Client ID header
-    }
-    ```
-[ ] **Configure DRF Authentication Classes:** Update default authentication classes to include both JWT and API Key.
-    ```python
-    # config/settings/base.py
-    REST_FRAMEWORK = {
-        # ... other settings ...
-        'DEFAULT_AUTHENTICATION_CLASSES': [
-            'rest_framework_simplejwt.authentication.JWTAuthentication',
-            'rest_framework_api_key.authentication.APIKeyAuthentication', # Add API Key Auth
-        ],
-        # ... other settings like DEFAULT_PERMISSION_CLASSES ...
-    }
-    ```
-[ ] Create new Django app: `python manage.py startapp auth`. Add `'api.v1.auth'` to `INSTALLED_APPS`.
-[ ] Ensure `factory-boy` and `UserFactory` exist.
+  *(Models -> Single Primary Logic -> Factories -> Admin -> Migrations -> **Serializer (w/ Workaround)** -> API -> **Serializer Refactor (Later)**)*
 
+  ### 3.1 Model Definitions (`models.py`)
+
+  [ ] **(Test First - Contact & Channels)** Write Unit Tests verifying all models (`Contact`, `ContactEmailAddress`, `ContactPhoneNumber`, `ContactAddress`). Ensure `Contact.linked_organization` FK exists and is **nullable**.
+  [ ] Define the `Contact` model *first* in `api/v1/base_models/contact/models.py`. Ensure `linked_organization` uses `null=True, blank=True`. Include `TaggableManager`.
+  [ ] Define the communication channel models (`ContactEmailAddress`, `ContactPhoneNumber`, `ContactAddress`) *after* `Contact`. Ensure `ContactAddress` links correctly to `common.Address`.
+  [ ] Run tests for all models; expect pass. Refactor.
+
+  ### 3.2 Single Primary Logic (Model `save` override)
+
+  [ ] **(Test First)** Write Integration Tests verifying single primary logic for Email, Phone, and Address models.
+  [ ] Implement the `save()` override method on channel models.
+  [ ] Run single primary logic tests; expect pass. Refactor.
+
+ 
 
 with the following MUST follow rules:
-- DON'T expand your work beyond this task
 - MUST follow the attached document literally
+- DON'T expand your work beyond this task
+- DON'T install dependencies directly, check the requirements directory first.
 - DON'T AFFECT OTHER IMPLEMENTATIONS
 - Test coverage score at least 90%
 - Follow Project Folder Structure
@@ -49,10 +37,11 @@ Did you finished the following step:
 
 
 === FOR TEST ===
-please run global pytest  to examine some failed tests
+please run docker-compose run --rm test to examine if any failed tests
 -focus on the failing tests
 -fix one by one, then run the tests..
 -keep running the tests until all tests are passed
+- run the tests to verify the implementation is passed
 
 - run the tests to verify that the actual implementation is passed
 
@@ -66,7 +55,7 @@ please run global pytest  to examine some failed tests
 
 - Please update the implementation steps file to reflect our latest progress 
 - Please Git add & commit latest updates with proper description
-- Create an API documentation file (api.md) with more detailed examples 
+- please Create an API documentation file (api.md) for all endpoints with detailed examples 
 
 git reset --hard HEAD
 git clean -fd
@@ -92,6 +81,9 @@ please run global pytest  to examine some failed tests
 
 
 
+
+
+  [ ] Run setup/verification API tests; expect pass. Refactor views.
 
 
 

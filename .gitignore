@@ -123,8 +123,8 @@ lerna-debug.log*
 # Local development
 local_settings.py
 local.py
-dev.py
-test.py
+# dev.py
+# test.py
 
 # Database
 *.sqlite3

@@ -92,7 +92,7 @@ LOCAL_APPS = [
     'api.v1.base_models.common.apps.CommonConfig',
     'api.v1.base_models.common.currency.apps.CurrencyConfig',  # Add Currency app
     'api.v1.base_models.common.address.apps.AddressConfig',  # Add Address app
-    # 'api.v1.base_models.contact.apps.ContactConfig', # Renamed from user based on models
+    'api.v1.base_models.contact.apps.ContactConfig', # Contact app
     'api.v1.base_models.organization.apps.OrganizationConfig',
     'api.v1.base_models.user.apps.UserConfig', # Keeps UserProfile separate
     # Add other feature/base apps as they are created
@@ -143,10 +143,10 @@ WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application' # For Channels
 
 # Database (Using django-environ)
-# DATABASES = {
-#     'default': env.db('DATABASE_URL', default='postgres://postgres:postgres@localhost:5432/alees')
-# }
-# DATABASES['default']['ATOMIC_REQUESTS'] = True # Recommended for API atomicity
+DATABASES = {
+    'default': env.db('DATABASE_URL', default='postgres://postgres:postgres@localhost:5432/alees')
+}
+DATABASES['default']['ATOMIC_REQUESTS'] = True # Recommended for API atomicity
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
