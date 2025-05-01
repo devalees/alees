@@ -44,15 +44,16 @@ def test_api_key_required(api_client):
 def test_invalid_api_key(api_client):
     """Test that invalid API key is rejected."""
     url = reverse('v1:user:my-profile')
-    response = api_client.get(url, HTTP_X_API_KEY='invalid-key')
+    headers = {'Authorization': 'Api-Key invalid-key'}
+    response = api_client.get(url, **headers)
     assert response.status_code == 401  # Unauthorized with invalid key
 
 @pytest.mark.django_db
 def test_valid_api_key(api_client, valid_api_key):
     """Test that valid API key is accepted."""
     url = reverse('v1:user:my-profile')
-    headers = {'X-Api-Key': valid_api_key}
-    response = api_client.get(url, **headers)
+    api_client.credentials(HTTP_X_API_KEY=valid_api_key)
+    response = api_client.get(url)
     assert response.status_code == 200  # Success with valid key
     assert response.data is not None  # Ensure we got a response
 
@@ -60,7 +61,7 @@ def test_valid_api_key(api_client, valid_api_key):
 def test_expired_api_key(api_client, expired_api_key):
     """Test that expired API key is rejected."""
     url = reverse('v1:user:my-profile')
-    headers = {'X-Api-Key': expired_api_key}
+    headers = {'Authorization': f'Api-Key {expired_api_key}'}
     response = api_client.get(url, **headers)
     assert response.status_code == 401  # Unauthorized with expired key
 
@@ -68,6 +69,6 @@ def test_expired_api_key(api_client, expired_api_key):
 def test_revoked_api_key(api_client, revoked_api_key):
     """Test that revoked API key is rejected."""
     url = reverse('v1:user:my-profile')
-    headers = {'X-Api-Key': revoked_api_key}
+    headers = {'Authorization': f'Api-Key {revoked_api_key}'}
     response = api_client.get(url, **headers)
     assert response.status_code == 401  # Unauthorized with revoked key 

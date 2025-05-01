@@ -75,7 +75,8 @@ class TestContactEmailAddressModel:
     def test_email_validation(self):
         """Test email validation."""
         with pytest.raises(ValidationError):
-            ContactEmailAddressFactory(email="invalid-email")
+            email = ContactEmailAddressFactory.build(email="invalid-email")
+            email.full_clean()
 
     def test_primary_email_uniqueness(self):
         """Test that only one email can be primary per contact."""
