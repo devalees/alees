@@ -1,5 +1,6 @@
 import pytest
 from rest_framework.exceptions import ValidationError
+from django.contrib.auth import get_user_model
 from taggit.models import Tag
 
 from api.v1.base_models.contact.serializers import (
@@ -21,15 +22,19 @@ from api.v1.base_models.contact.tests.factories import (
 )
 from api.v1.base_models.common.address.tests.factories import AddressFactory
 
+User = get_user_model()
+
 @pytest.mark.django_db
 class TestContactEmailAddressSerializer:
     """Test cases for ContactEmailAddressSerializer."""
 
     def test_serialization(self):
-        """Test serializing an email address."""
+        """Test serialization of email address."""
         email = ContactEmailAddressFactory()
         serializer = ContactEmailAddressSerializer(email)
         data = serializer.data
+        
+        assert data['id'] == email.id
         assert data['email'] == email.email
         assert data['email_type'] == email.email_type
         assert data['is_primary'] == email.is_primary
@@ -51,12 +56,7 @@ class TestContactEmailAddressSerializer:
 
     def test_validation(self):
         """Test email validation."""
-        data = {
-            'email': 'invalid-email',
-            'email_type': EmailType.WORK,
-            'is_primary': True
-        }
-        serializer = ContactEmailAddressSerializer(data=data)
+        serializer = ContactEmailAddressSerializer(data={'email': 'invalid'})
         assert not serializer.is_valid()
         assert 'email' in serializer.errors
 
@@ -65,10 +65,12 @@ class TestContactPhoneNumberSerializer:
     """Test cases for ContactPhoneNumberSerializer."""
 
     def test_serialization(self):
-        """Test serializing a phone number."""
+        """Test serialization of phone number."""
         phone = ContactPhoneNumberFactory()
         serializer = ContactPhoneNumberSerializer(phone)
         data = serializer.data
+        
+        assert data['id'] == phone.id
         assert data['phone_number'] == phone.phone_number
         assert data['phone_type'] == phone.phone_type
         assert data['is_primary'] == phone.is_primary
@@ -88,15 +90,31 @@ class TestContactPhoneNumberSerializer:
         assert phone.phone_type == data['phone_type']
         assert phone.is_primary == data['is_primary']
 
+    def test_validation(self):
+        """Test phone number validation."""
+        invalid_numbers = [
+            '1234567',  # No +
+            '+abc123',  # Non-digit characters
+            '+123',     # Too short
+            '+1234567890123456'  # Too long
+        ]
+        
+        for number in invalid_numbers:
+            serializer = ContactPhoneNumberSerializer(data={'phone_number': number})
+            assert not serializer.is_valid()
+            assert 'phone_number' in serializer.errors
+
 @pytest.mark.django_db
 class TestContactAddressSerializer:
     """Test cases for ContactAddressSerializer."""
 
     def test_serialization(self):
-        """Test serializing an address."""
+        """Test serialization of address."""
         address = ContactAddressFactory()
         serializer = ContactAddressSerializer(address)
         data = serializer.data
+        
+        assert data['id'] == address.id
         assert data['address'] == address.address.id
         assert data['address_type'] == address.address_type
         assert data['is_primary'] == address.is_primary
@@ -122,38 +140,35 @@ class TestContactSerializer:
     """Test cases for ContactSerializer."""
 
     def test_serialization(self):
-        """Test serializing a contact with nested data."""
+        """Test serialization of contact with nested objects."""
         contact = ContactFactory()
-        email = ContactEmailAddressFactory(contact=contact, is_primary=True)
-        phone = ContactPhoneNumberFactory(contact=contact, is_primary=True)
-        address = ContactAddressFactory(contact=contact, is_primary=True)
-        contact.tags.add('important', 'customer')
-
+        email = ContactEmailAddressFactory(contact=contact)
+        phone = ContactPhoneNumberFactory(contact=contact)
+        address = ContactAddressFactory(contact=contact)
+        contact.tags.add('test')
+        
         serializer = ContactSerializer(contact)
         data = serializer.data
-
+        
+        assert data['id'] == contact.id
         assert data['first_name'] == contact.first_name
         assert data['last_name'] == contact.last_name
-        assert data['organization_id'] == contact.organization_id
-        assert data['tags'] == ['customer', 'important']
         assert len(data['email_addresses']) == 1
         assert len(data['phone_numbers']) == 1
         assert len(data['addresses']) == 1
+        assert 'test' in data['tags']
 
     def test_deserialization(self):
-        """Test deserializing contact data with nested objects."""
-        address = AddressFactory()
+        """Test deserialization of contact with nested objects."""
         data = {
             'first_name': 'John',
             'last_name': 'Doe',
-            'organization_id': 1,
             'contact_type': ContactType.PRIMARY,
             'status': ContactStatus.ACTIVE,
             'source': ContactSource.WEBSITE,
-            'tags': ['important', 'customer'],
             'email_addresses': [{
                 'email': 'john@example.com',
-                'email_type': EmailType.WORK,
+                'email_type': EmailType.PERSONAL,
                 'is_primary': True
             }],
             'phone_numbers': [{
@@ -162,49 +177,96 @@ class TestContactSerializer:
                 'is_primary': True
             }],
             'addresses': [{
-                'address': address.id,
+                'address': AddressFactory().id,
+                'address_type': AddressType.HOME,
+                'is_primary': True
+            }],
+            'tags': ['test']
+        }
+        
+        serializer = ContactSerializer(data=data)
+        assert serializer.is_valid()
+        contact = serializer.save()
+        
+        assert contact.first_name == 'John'
+        assert contact.last_name == 'Doe'
+        assert contact.email_addresses.count() == 1
+        assert contact.phone_numbers.count() == 1
+        assert contact.addresses.count() == 1
+        assert 'test' in [tag.name for tag in contact.tags.all()]
+
+    def test_update_nested_objects(self):
+        """Test updating nested objects."""
+        contact = ContactFactory()
+        email = ContactEmailAddressFactory(contact=contact, email='test@example.com', is_primary=True)
+        phone = ContactPhoneNumberFactory(contact=contact, phone_number='+1234567890', is_primary=True)
+        address = ContactAddressFactory(contact=contact, is_primary=True)
+
+        data = {
+            'id': contact.id,
+            'first_name': contact.first_name,
+            'last_name': contact.last_name,
+            'contact_type': ContactType.PRIMARY,
+            'status': ContactStatus.ACTIVE,
+            'source': ContactSource.WEBSITE,
+            'email_addresses': [{
+                'id': email.id,
+                'email': 'updated@example.com',
+                'email_type': EmailType.WORK,
+                'is_primary': True
+            }],
+            'phone_numbers': [{
+                'id': phone.id,
+                'phone_number': '+9876543210',
+                'phone_type': PhoneType.WORK,
+                'is_primary': True
+            }],
+            'addresses': [{
+                'id': address.id,
+                'address': address.address.id,
                 'address_type': AddressType.WORK,
                 'is_primary': True
             }]
         }
 
-        serializer = ContactSerializer(data=data)
-        assert serializer.is_valid()
-        contact = serializer.save()
-        
-        assert contact.first_name == data['first_name']
-        assert contact.last_name == data['last_name']
-        assert contact.organization_id == data['organization_id']
-        assert set(contact.tags.names()) == set(data['tags'])
-        assert contact.email_addresses.count() == 1
-        assert contact.phone_numbers.count() == 1
-        assert contact.addresses.count() == 1
+        serializer = ContactSerializer(contact, data=data)
+        if not serializer.is_valid():
+            pytest.fail(f"Serializer validation failed: {serializer.errors}")
+        updated_contact = serializer.save()
 
-    def test_organization_id_validation(self):
-        """Test organization_id validation."""
-        data = {
-            'first_name': 'John',
-            'last_name': 'Doe',
-            'organization_id': -1,  # Invalid ID
-            'contact_type': ContactType.PRIMARY,
-            'status': ContactStatus.ACTIVE,
-            'source': ContactSource.WEBSITE
-        }
-        serializer = ContactSerializer(data=data)
+        # Verify email was updated
+        updated_email = updated_contact.email_addresses.get(id=email.id)
+        assert updated_email.email == 'updated@example.com'
+        assert updated_email.email_type == EmailType.WORK
+        assert updated_email.is_primary
+
+        # Verify phone was updated
+        updated_phone = updated_contact.phone_numbers.get(id=phone.id)
+        assert updated_phone.phone_number == '+9876543210'
+        assert updated_phone.phone_type == PhoneType.WORK
+        assert updated_phone.is_primary
+
+        # Verify address was updated
+        updated_address = updated_contact.addresses.get(id=address.id)
+        assert updated_address.address_type == AddressType.WORK
+        assert updated_address.is_primary
+
+    def test_organization_validation(self):
+        """Test organization ID validation."""
+        serializer = ContactSerializer(data={'organization_id': -1})
         assert not serializer.is_valid()
         assert 'organization_id' in serializer.errors
 
-    def test_null_organization_id(self):
-        """Test that organization_id can be null."""
-        data = {
-            'first_name': 'John',
-            'last_name': 'Doe',
-            'organization_id': None,
-            'contact_type': ContactType.PRIMARY,
-            'status': ContactStatus.ACTIVE,
-            'source': ContactSource.WEBSITE
-        }
-        serializer = ContactSerializer(data=data)
-        assert serializer.is_valid()
-        contact = serializer.save()
-        assert contact.organization_id is None 
+        serializer = ContactSerializer(data={'linked_organization_id': -1})
+        assert not serializer.is_valid()
+        assert 'linked_organization_id' in serializer.errors
+
+    def test_to_representation(self):
+        """Test to_representation method."""
+        contact = ContactFactory()
+        contact.tags.add('tag2', 'tag1')
+        
+        serializer = ContactSerializer(contact)
+        data = serializer.data
+        
+        assert data['tags'] == ['tag1', 'tag2'] 

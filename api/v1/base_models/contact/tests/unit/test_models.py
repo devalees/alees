@@ -2,6 +2,7 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from taggit.models import Tag
+from django.contrib.auth import get_user_model
 
 from api.v1.base_models.contact.models import (
     Contact, ContactEmailAddress, ContactPhoneNumber, ContactAddress
@@ -16,6 +17,8 @@ from api.v1.base_models.contact.tests.factories import (
 )
 from api.v1.base_models.common.address.tests.factories import AddressFactory
 from api.v1.base_models.user.tests.factories import UserFactory
+
+User = get_user_model()
 
 @pytest.mark.django_db
 class TestContactModel:
@@ -61,6 +64,37 @@ class TestContactModel:
         contact = ContactFactory(first_name='John', last_name='Doe')
         assert str(contact) == 'John Doe'
 
+    def test_contact_clean_validation(self):
+        """Test contact validation."""
+        # Test with no names
+        contact = ContactFactory.build(first_name='', last_name='')
+        with pytest.raises(ValidationError):
+            contact.clean()
+
+        # Test with invalid custom fields
+        contact = ContactFactory.build(custom_fields='invalid')
+        with pytest.raises(ValidationError):
+            contact.clean()
+
+    def test_contact_properties(self):
+        """Test contact properties."""
+        contact = ContactFactory()
+        email = ContactEmailAddressFactory(contact=contact, is_primary=True)
+        phone = ContactPhoneNumberFactory(contact=contact, is_primary=True)
+        address = ContactAddressFactory(contact=contact, is_primary=True)
+
+        assert contact.primary_email == email
+        assert contact.primary_phone == phone
+        assert contact.primary_address == address
+        assert contact.full_name == f"{contact.first_name} {contact.last_name}".strip()
+
+    def test_contact_meta(self):
+        """Test contact Meta options."""
+        assert Contact._meta.verbose_name == 'Contact'
+        assert Contact._meta.verbose_name_plural == 'Contacts'
+        assert Contact._meta.ordering == ['last_name', 'first_name']
+        assert len(Contact._meta.indexes) == 5
+
 @pytest.mark.django_db
 class TestContactEmailAddressModel:
     """Test cases for the ContactEmailAddress model."""
@@ -84,6 +118,25 @@ class TestContactEmailAddressModel:
         email1 = ContactEmailAddressFactory(contact=contact, is_primary=True)
         email2 = ContactEmailAddressFactory(contact=contact, is_primary=True)
         email1.refresh_from_db()
+        assert not email1.is_primary
+        assert email2.is_primary
+
+    def test_email_clean_validation(self):
+        """Test email validation."""
+        contact = ContactFactory()
+        email = ContactEmailAddressFactory.build(contact=contact, email='invalid')
+        with pytest.raises(ValidationError):
+            email.clean()
+
+    def test_primary_email_handling(self):
+        """Test primary email handling."""
+        contact = ContactFactory()
+        email1 = ContactEmailAddressFactory(contact=contact, is_primary=True)
+        email2 = ContactEmailAddressFactory(contact=contact, is_primary=True)
+        
+        email1.refresh_from_db()
+        email2.refresh_from_db()
+        
         assert not email1.is_primary
         assert email2.is_primary
 
@@ -112,6 +165,35 @@ class TestContactPhoneNumberModel:
         assert not phone1.is_primary
         assert phone2.is_primary
 
+    def test_phone_clean_validation(self):
+        """Test phone number validation."""
+        contact = ContactFactory()
+        
+        # Test invalid phone number formats
+        invalid_numbers = [
+            '1234567',  # No +
+            '+abc123',  # Non-digit characters
+            '+123',     # Too short
+            '+1234567890123456'  # Too long
+        ]
+        
+        for number in invalid_numbers:
+            phone = ContactPhoneNumberFactory.build(contact=contact, phone_number=number)
+            with pytest.raises(ValidationError):
+                phone.clean()
+
+    def test_primary_phone_handling(self):
+        """Test primary phone handling."""
+        contact = ContactFactory()
+        phone1 = ContactPhoneNumberFactory(contact=contact, is_primary=True)
+        phone2 = ContactPhoneNumberFactory(contact=contact, is_primary=True)
+        
+        phone1.refresh_from_db()
+        phone2.refresh_from_db()
+        
+        assert not phone1.is_primary
+        assert phone2.is_primary
+
 @pytest.mark.django_db
 class TestContactAddressModel:
     """Test cases for the ContactAddress model."""
@@ -130,4 +212,18 @@ class TestContactAddressModel:
         address2 = ContactAddressFactory(contact=contact, is_primary=True)
         address1.refresh_from_db()
         assert not address1.is_primary
-        assert address2.is_primary 
+        assert address2.is_primary
+
+    def test_primary_address_handling(self):
+        """Test primary address handling."""
+        contact = ContactFactory()
+        address1 = AddressFactory()
+        address2 = AddressFactory()
+        addr1 = ContactAddressFactory(contact=contact, address=address1, is_primary=True)
+        addr2 = ContactAddressFactory(contact=contact, address=address2, is_primary=True)
+        
+        addr1.refresh_from_db()
+        addr2.refresh_from_db()
+        
+        assert not addr1.is_primary
+        assert addr2.is_primary 

@@ -168,27 +168,57 @@ class ContactSerializer(TaggitSerializer, serializers.ModelSerializer):
 
         return instance
 
-    def _update_nested_objects(self, contact, related_name, objects_data):
-        """Update nested objects for a contact."""
+    def _update_nested_objects(self, instance, field_name, objects_data):
+        """Update nested objects for a given field."""
+        if not objects_data:
+            return
+
         # Get the related manager
-        related_manager = getattr(contact, related_name)
+        related_manager = getattr(instance, field_name)
         
-        # Delete existing objects not in the new data
-        existing_ids = {obj['id'] for obj in objects_data if 'id' in obj}
-        related_manager.exclude(id__in=existing_ids).delete()
+        # Get existing objects
+        existing_objects = {obj.id: obj for obj in related_manager.all()}
+        updated_ids = set()
 
         # Update or create objects
         for obj_data in objects_data:
-            obj_id = obj_data.pop('id', None)
-            if obj_id:
+            obj_id = obj_data.get('id')
+            if obj_id and obj_id in existing_objects:
                 # Update existing object
-                obj = related_manager.get(id=obj_id)
-                for attr, value in obj_data.items():
-                    setattr(obj, attr, value)
+                obj = existing_objects[obj_id]
+                for key, value in obj_data.items():
+                    if key != 'id':
+                        setattr(obj, key, value)
                 obj.save()
+                updated_ids.add(obj_id)
             else:
-                # Create new object
-                related_manager.create(**obj_data)
+                # For new objects, check if a unique constraint would be violated
+                unique_fields = related_manager.model._meta.unique_together
+                if unique_fields:
+                    # Build filter for unique constraints
+                    unique_filter = {}
+                    for constraint in unique_fields:
+                        if all(field in obj_data for field in constraint):
+                            unique_filter.update({field: obj_data[field] for field in constraint})
+                    
+                    # Try to get existing object based on unique constraints
+                    existing_obj = related_manager.filter(**unique_filter).first()
+                    if existing_obj:
+                        # Update existing object instead of creating new one
+                        for key, value in obj_data.items():
+                            if key != 'id':
+                                setattr(existing_obj, key, value)
+                        existing_obj.save()
+                        updated_ids.add(existing_obj.id)
+                        continue
+
+                # Create new object if no unique constraint violation
+                obj = related_manager.create(**obj_data)
+                updated_ids.add(obj.id)
+
+        # Delete objects that weren't updated or created
+        if updated_ids:
+            related_manager.exclude(id__in=updated_ids).delete()
 
     def to_representation(self, instance):
         """Convert instance to representation."""
