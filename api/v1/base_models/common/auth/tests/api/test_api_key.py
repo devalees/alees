@@ -36,14 +36,14 @@ def revoked_api_key():
 @pytest.mark.django_db
 def test_api_key_required(api_client):
     """Test that API key is required for access."""
-    url = reverse('v1:user:my-profile')
+    url = reverse('v1:base_models:user:my-profile')
     response = api_client.get(url)
     assert response.status_code == 401  # Unauthorized without API key
 
 @pytest.mark.django_db
 def test_invalid_api_key(api_client):
     """Test that invalid API key is rejected."""
-    url = reverse('v1:user:my-profile')
+    url = reverse('v1:base_models:user:my-profile')
     headers = {'Authorization': 'Api-Key invalid-key'}
     response = api_client.get(url, **headers)
     assert response.status_code == 401  # Unauthorized with invalid key
@@ -51,7 +51,7 @@ def test_invalid_api_key(api_client):
 @pytest.mark.django_db
 def test_valid_api_key(api_client, valid_api_key):
     """Test that valid API key is accepted."""
-    url = reverse('v1:user:my-profile')
+    url = reverse('v1:base_models:user:my-profile')
     api_client.credentials(HTTP_X_API_KEY=valid_api_key)
     response = api_client.get(url)
     assert response.status_code == 200  # Success with valid key
@@ -60,7 +60,7 @@ def test_valid_api_key(api_client, valid_api_key):
 @pytest.mark.django_db
 def test_expired_api_key(api_client, expired_api_key):
     """Test that expired API key is rejected."""
-    url = reverse('v1:user:my-profile')
+    url = reverse('v1:base_models:user:my-profile')
     headers = {'Authorization': f'Api-Key {expired_api_key}'}
     response = api_client.get(url, **headers)
     assert response.status_code == 401  # Unauthorized with expired key
@@ -68,7 +68,7 @@ def test_expired_api_key(api_client, expired_api_key):
 @pytest.mark.django_db
 def test_revoked_api_key(api_client, revoked_api_key):
     """Test that revoked API key is rejected."""
-    url = reverse('v1:user:my-profile')
+    url = reverse('v1:base_models:user:my-profile')
     headers = {'Authorization': f'Api-Key {revoked_api_key}'}
     response = api_client.get(url, **headers)
     assert response.status_code == 401  # Unauthorized with revoked key 

@@ -30,7 +30,7 @@ class TestContactViewSet:
     def setup_method(self, method):
         """Set up test client and base URL."""
         self.client = APIClient()
-        self.url = reverse('v1:contact:contact-list')
+        self.url = reverse('v1:base_models:contact:contact-list')
         # Create and authenticate a test user
         self.user = User.objects.create_user(
             username='testuser',
@@ -129,7 +129,7 @@ class TestContactViewSet:
         ContactAddressFactory(contact=contact)
         contact.tags.add('important')
 
-        url = reverse('v1:contact:contact-detail', args=[contact.id])
+        url = reverse('v1:base_models:contact:contact-detail', args=[contact.id])
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -143,7 +143,7 @@ class TestContactViewSet:
     def test_update_contact(self):
         """Test updating a contact."""
         contact = ContactFactory()
-        url = reverse('v1:contact:contact-detail', args=[contact.id])
+        url = reverse('v1:base_models:contact:contact-detail', args=[contact.id])
         
         data = {
             'first_name': 'Updated',
@@ -164,7 +164,7 @@ class TestContactViewSet:
     def test_delete_contact(self):
         """Test deleting a contact."""
         contact = ContactFactory()
-        url = reverse('v1:contact:contact-detail', args=[contact.id])
+        url = reverse('v1:base_models:contact:contact-detail', args=[contact.id])
 
         response = self.client.delete(url)
         assert response.status_code == status.HTTP_204_NO_CONTENT

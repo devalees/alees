@@ -25,6 +25,7 @@ class ContactViewSet(viewsets.ModelViewSet):
     - Nested channel operations (email, phone, address)
     """
     permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'post', 'put', 'patch', 'delete', 'head']
     queryset = Contact.objects.prefetch_related(
         'email_addresses',
         'phone_numbers',

@@ -7,9 +7,9 @@ app_name = 'v1'
 # Create a router for API endpoints
 router = DefaultRouter()
 
-# Include base_models URLs without namespace to allow nested namespaces to be directly under v1
+# Include base_models URLs with namespace to properly register nested namespaces
 base_models_urls = [
-    path('', include('api.v1.base_models.urls')),
+    path('', include('api.v1.base_models.urls', namespace='base_models')),
 ]
 
 # Include features URLs

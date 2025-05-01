@@ -3,15 +3,26 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from ..factories import OrganizationTypeFactory
 from ...models import OrganizationType
+import pytest
+from rest_framework.test import APIClient
+
+from api.v1.base_models.organization.models import Organization
+from api.v1.base_models.organization.tests.factories import (
+    OrganizationFactory,
+    OrganizationTypeFactory,
+    ContactFactory,
+    AddressFactory,
+    CurrencyFactory
+)
 
 class OrganizationTypeViewSetTests(APITestCase):
     def setUp(self):
         self.org_type = OrganizationTypeFactory()
-        self.list_url = '/api/v1/organization/organization-types/'
-        self.detail_url = f'/api/v1/organization/organization-types/{self.org_type.name}/'
+        self.list_url = reverse('v1:base_models:organization:organizationtype-list')
+        self.detail_url = reverse('v1:base_models:organization:organizationtype-detail', kwargs={'name': self.org_type.name})
 
     def test_list_endpoint(self):
-        """Test GET /api/v1/organization-types/ endpoint"""
+        """Test GET /api/v1/organization/types/ endpoint"""
         # Create multiple organization types
         types = [
             OrganizationTypeFactory(name='Company'),
@@ -39,7 +50,7 @@ class OrganizationTypeViewSetTests(APITestCase):
             self.assertIsInstance(item['description'], str)
 
     def test_retrieve_endpoint(self):
-        """Test GET /api/v1/organization-types/{name}/ endpoint"""
+        """Test GET /api/v1/organization/types/{name}/ endpoint"""
         response = self.client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
@@ -120,4 +131,92 @@ class OrganizationTypeViewSetTests(APITestCase):
         
         # Test DELETE - should require authentication
         response = self.client.delete(self.detail_url)
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED) 
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+@pytest.fixture
+def api_client():
+    return APIClient()
+
+@pytest.fixture
+@pytest.mark.django_db
+def organization_type():
+    return OrganizationTypeFactory()
+
+@pytest.fixture
+@pytest.mark.django_db
+def contact():
+    return ContactFactory()
+
+@pytest.fixture
+@pytest.mark.django_db
+def address():
+    return AddressFactory()
+
+@pytest.fixture
+@pytest.mark.django_db
+def currency():
+    return CurrencyFactory()
+
+@pytest.fixture
+@pytest.mark.django_db
+def parent_org():
+    return OrganizationFactory()
+
+@pytest.fixture
+@pytest.mark.django_db
+def organization(organization_type, contact, address, currency, parent_org):
+    return OrganizationFactory(
+        organization_type=organization_type,
+        primary_contact=contact,
+        primary_address=address,
+        currency=currency,
+        parent=parent_org
+    )
+
+@pytest.mark.django_db
+def test_organization_list_requires_authentication(api_client):
+    """Test that organization list endpoint requires authentication."""
+    url = reverse('v1:base_models:organization:organization-list')
+    response = api_client.get(url)
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+@pytest.mark.django_db
+def test_organization_create_requires_authentication(api_client, organization_type, contact, address, currency, parent_org):
+    """Test that organization create endpoint requires authentication."""
+    url = reverse('v1:base_models:organization:organization-list')
+    data = {
+        'name': 'Test Organization',
+        'code': 'TEST001',
+        'organization_type': organization_type.id,
+        'status': 'active',
+        'primary_contact': contact.id,
+        'primary_address': address.id,
+        'currency': currency.code,
+        'parent': parent_org.id,
+        'timezone': 'UTC',
+        'language': 'en'
+    }
+    response = api_client.post(url, data)
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+@pytest.mark.django_db
+def test_organization_retrieve_requires_authentication(api_client, organization):
+    """Test that organization retrieve endpoint requires authentication."""
+    url = reverse('v1:base_models:organization:organization-detail', kwargs={'pk': organization.id})
+    response = api_client.get(url)
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+@pytest.mark.django_db
+def test_organization_update_requires_authentication(api_client, organization):
+    """Test that organization update endpoint requires authentication."""
+    url = reverse('v1:base_models:organization:organization-detail', kwargs={'pk': organization.id})
+    data = {'name': 'Updated Organization'}
+    response = api_client.put(url, data)
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+@pytest.mark.django_db
+def test_organization_delete_requires_authentication(api_client, organization):
+    """Test that organization delete endpoint requires authentication."""
+    url = reverse('v1:base_models:organization:organization-detail', kwargs={'pk': organization.id})
+    response = api_client.delete(url)
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED 

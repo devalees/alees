@@ -10,13 +10,13 @@ class TestContactURLs:
 
     def test_contact_list_url(self):
         """Test that the contact list URL resolves to the correct view."""
-        url = reverse('v1:contact:contact-list')
+        url = reverse('v1:base_models:contact:contact-list')
         assert resolve(url).func.cls == ContactViewSet
         assert resolve(url).func.actions == {'get': 'list', 'post': 'create', 'head': 'list'}
 
     def test_contact_detail_url(self):
         """Test that the contact detail URL resolves to the correct view."""
-        url = reverse('v1:contact:contact-detail', args=[1])
+        url = reverse('v1:base_models:contact:contact-detail', args=[1])
         assert resolve(url).func.cls == ContactViewSet
         assert resolve(url).func.actions == {
             'get': 'retrieve',
@@ -29,8 +29,8 @@ class TestContactURLs:
     def test_url_patterns(self):
         """Test that all expected URL patterns are present."""
         url_patterns = [
-            reverse('v1:contact:contact-list'),
-            reverse('v1:contact:contact-detail', args=[1]),
+            reverse('v1:base_models:contact:contact-list'),
+            reverse('v1:base_models:contact:contact-detail', args=[1]),
         ]
         
         for url in url_patterns:

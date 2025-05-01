@@ -27,7 +27,7 @@ def user_with_2fa():
 @pytest.mark.django_db
 def test_disable_2fa_unauthenticated(api_client):
     """Test that unauthenticated users cannot disable 2FA."""
-    url = reverse('v1:auth:2fa-totp-disable')
+    url = reverse('v1:base_models:auth:2fa-totp-disable')
     response = api_client.post(url, {'password': 'testpass123'})
     assert response.status_code == 401
 
@@ -38,7 +38,7 @@ def test_disable_2fa_authenticated_no_2fa(api_client, user_with_2fa):
     # Delete the 2FA device
     TOTPDevice.objects.filter(user=user_with_2fa).delete()
     
-    url = reverse('v1:auth:2fa-totp-disable')
+    url = reverse('v1:base_models:auth:2fa-totp-disable')
     response = api_client.post(url, {'password': 'testpass123'})
     assert response.status_code == 400
     assert '2FA is not enabled' in str(response.data)
@@ -48,7 +48,7 @@ def test_disable_2fa_wrong_password(api_client, user_with_2fa):
     """Test that wrong password prevents 2FA disable."""
     api_client.force_authenticate(user=user_with_2fa)
     
-    url = reverse('v1:auth:2fa-totp-disable')
+    url = reverse('v1:base_models:auth:2fa-totp-disable')
     response = api_client.post(url, {'password': 'wrongpass'})
     assert response.status_code == 400
     assert 'Invalid password' in str(response.data)
@@ -58,7 +58,7 @@ def test_disable_2fa_success(api_client, user_with_2fa):
     """Test successful 2FA disable."""
     api_client.force_authenticate(user=user_with_2fa)
     
-    url = reverse('v1:auth:2fa-totp-disable')
+    url = reverse('v1:base_models:auth:2fa-totp-disable')
     response = api_client.post(url, {'password': 'testpass123'})
     assert response.status_code == 200
     assert '2FA disabled successfully' in str(response.data)

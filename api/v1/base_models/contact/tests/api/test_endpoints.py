@@ -23,7 +23,7 @@ class TestContactAPI:
             password='testpass123'
         )
         self.client.force_authenticate(user=self.user)
-        self.url = reverse('v1:contact:contact-list')
+        self.url = reverse('v1:base_models:contact:contact-list')
 
     def test_create_contact_with_channels(self):
         """Test creating a contact with nested channel data"""
@@ -92,7 +92,7 @@ class TestContactAPI:
         }
 
         response = self.client.patch(
-            reverse('v1:contact:contact-detail', kwargs={'pk': contact.id}),
+            reverse('v1:base_models:contact:contact-detail', kwargs={'pk': contact.id}),
             data,
             format='json'
         )
@@ -121,7 +121,7 @@ class TestContactAPI:
         }
 
         response = self.client.patch(
-            reverse('v1:contact:contact-detail', kwargs={'pk': contact.id}),
+            reverse('v1:base_models:contact:contact-detail', kwargs={'pk': contact.id}),
             data,
             format='json'
         )
@@ -130,7 +130,7 @@ class TestContactAPI:
         # Test unsetting
         data = {'linked_organization_id': None}
         response = self.client.patch(
-            reverse('v1:contact:contact-detail', kwargs={'pk': contact.id}),
+            reverse('v1:base_models:contact:contact-detail', kwargs={'pk': contact.id}),
             data,
             format='json'
         )
