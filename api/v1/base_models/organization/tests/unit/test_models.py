@@ -1,60 +1,198 @@
-from django.test import TestCase
+import pytest
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from crum import impersonate
 
-from api.v1.base_models.organization.models import OrganizationType
+from api.v1.base_models.organization.models import OrganizationType, Organization
+from api.v1.base_models.contact.models import Contact, ContactEmailAddress
+from api.v1.base_models.common.address.models import Address
+from api.v1.base_models.common.currency.models import Currency
 
 User = get_user_model()
 
 
-class TestOrganizationType(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(
-            username='test_user',
-            email='test@example.com',
-            password='test_password'
+@pytest.fixture
+def user():
+    return User.objects.create_user(
+        username='test_user',
+        email='test@example.com',
+        password='test_password'
+    )
+
+@pytest.fixture
+def org_type(user):
+    with impersonate(user):
+        return OrganizationType.objects.create(
+            name="Test Organization Type",
+            description="Test Description"
         )
-        with impersonate(self.user):
-            self.org_type = OrganizationType.objects.create(
-                name="Test Organization Type",
-                description="Test Description"
-            )
 
-    def test_organization_type_creation(self):
+@pytest.fixture
+def currency(user):
+    with impersonate(user):
+        return Currency.objects.create(
+            code="USD",
+            name="US Dollar",
+            symbol="$"
+        )
+
+@pytest.fixture
+def contact(user):
+    with impersonate(user):
+        contact = Contact.objects.create(
+            first_name="John",
+            last_name="Doe"
+        )
+        ContactEmailAddress.objects.create(
+            contact=contact,
+            email="john@example.com",
+            is_primary=True
+        )
+        return contact
+
+@pytest.fixture
+def address(user):
+    with impersonate(user):
+        return Address.objects.create(
+            street_address_1="123 Main St",
+            city="Test City",
+            country="US"
+        )
+
+@pytest.fixture
+def parent_org(user, org_type):
+    with impersonate(user):
+        return Organization.objects.create(
+            name="Parent Organization",
+            code="PARENT",
+            organization_type=org_type,
+            status="active"
+        )
+
+@pytest.fixture
+def organization(user, org_type, parent_org, contact, address, currency):
+    with impersonate(user):
+        return Organization.objects.create(
+            name="Test Organization",
+            code="TEST",
+            organization_type=org_type,
+            parent=parent_org,
+            status="active",
+            primary_contact=contact,
+            primary_address=address,
+            currency=currency,
+            timezone="UTC",
+            language="en"
+        )
+
+
+@pytest.mark.django_db
+class TestOrganizationType:
+    def test_organization_type_creation(self, org_type, user):
         """Test that an OrganizationType can be created with all fields."""
-        self.assertEqual(self.org_type.name, "Test Organization Type")
-        self.assertEqual(self.org_type.description, "Test Description")
-        self.assertEqual(self.org_type.created_by, self.user)
-        self.assertEqual(self.org_type.updated_by, self.user)
-        self.assertIsNotNone(self.org_type.created_at)
-        self.assertIsNotNone(self.org_type.updated_at)
+        assert org_type.name == "Test Organization Type"
+        assert org_type.description == "Test Description"
+        assert org_type.created_by == user
+        assert org_type.updated_by == user
+        assert org_type.created_at is not None
+        assert org_type.updated_at is not None
 
-    def test_organization_type_str(self):
+    def test_organization_type_str(self, org_type):
         """Test the string representation of an OrganizationType."""
-        self.assertEqual(str(self.org_type), "Test Organization Type")
+        assert str(org_type) == "Test Organization Type"
 
-    def test_organization_type_unique_name(self):
+    def test_organization_type_unique_name(self, user, org_type):
         """Test that OrganizationType names must be unique."""
-        with self.assertRaises(Exception):
-            with impersonate(self.user):
+        with pytest.raises(Exception):
+            with impersonate(user):
                 OrganizationType.objects.create(
                     name="Test Organization Type",
                     description="Another Description"
                 )
 
-    def test_organization_type_timestamps(self):
+    def test_organization_type_timestamps(self, org_type):
         """Test that timestamps are set correctly."""
         now = timezone.now()
-        self.assertLessEqual(self.org_type.created_at, now)
-        self.assertLessEqual(self.org_type.updated_at, now)
+        assert org_type.created_at <= now
+        assert org_type.updated_at <= now
 
-    def test_organization_type_update(self):
+    def test_organization_type_update(self, user, org_type):
         """Test that updating an OrganizationType updates the updated_at timestamp."""
-        old_updated_at = self.org_type.updated_at
-        with impersonate(self.user):
-            self.org_type.description = "Updated Description"
-            self.org_type.save()
-        self.org_type.refresh_from_db()
-        self.assertGreater(self.org_type.updated_at, old_updated_at)
-        self.assertEqual(self.org_type.description, "Updated Description") 
+        old_updated_at = org_type.updated_at
+        with impersonate(user):
+            org_type.description = "Updated Description"
+            org_type.save()
+        org_type.refresh_from_db()
+        assert org_type.updated_at > old_updated_at
+        assert org_type.description == "Updated Description"
+
+
+@pytest.mark.django_db
+class TestOrganization:
+    def test_organization_creation(self, organization, org_type, parent_org, contact, address, currency, user):
+        """Test that an Organization can be created with all fields."""
+        assert organization.name == "Test Organization"
+        assert organization.code == "TEST"
+        assert organization.organization_type == org_type
+        assert organization.parent == parent_org
+        assert organization.status == "active"
+        assert organization.primary_contact == contact
+        assert organization.primary_address == address
+        assert organization.currency == currency
+        assert organization.timezone == "UTC"
+        assert organization.language == "en"
+        assert organization.created_by == user
+        assert organization.updated_by == user
+        assert organization.created_at is not None
+        assert organization.updated_at is not None
+
+    def test_organization_str(self, organization):
+        """Test the string representation of an Organization."""
+        assert str(organization) == "Test Organization"
+
+    def test_organization_unique_code(self, user, org_type, organization):
+        """Test that Organization codes must be unique."""
+        with pytest.raises(Exception):
+            with impersonate(user):
+                Organization.objects.create(
+                    name="Another Organization",
+                    code="TEST",  # Same code as existing org
+                    organization_type=org_type,
+                    status="active"
+                )
+
+    def test_organization_required_fields(self, user):
+        """Test that required fields are enforced."""
+        with pytest.raises(Exception):
+            with impersonate(user):
+                Organization.objects.create(
+                    name="Test Org",  # Missing required fields
+                )
+
+    def test_organization_hierarchy(self, organization, parent_org):
+        """Test MPTT hierarchy functionality."""
+        assert organization.get_ancestors().count() == 1
+        assert organization.get_ancestors().first() == parent_org
+        assert parent_org.get_descendants().count() == 1
+        assert parent_org.get_descendants().first() == organization
+
+    def test_organization_tags(self, organization):
+        """Test tag functionality."""
+        organization.tags.add("test", "organization")
+        assert organization.tags.count() == 2
+        assert organization.tags.filter(name="test").exists()
+        assert organization.tags.filter(name="organization").exists()
+
+    def test_organization_custom_fields(self, organization):
+        """Test custom fields functionality."""
+        organization.custom_fields = {"key": "value"}
+        organization.save()
+        organization.refresh_from_db()
+        assert organization.custom_fields == {"key": "value"}
+
+    def test_organization_metadata(self, organization):
+        """Test metadata functionality."""
+        organization.metadata = {"key": "value"}
+        organization.save()
+        organization.refresh_from_db()
+        assert organization.metadata == {"key": "value"} 
