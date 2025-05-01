@@ -47,7 +47,7 @@ class ContactPhoneNumberFactory(DjangoModelFactory):
         model = ContactPhoneNumber
 
     contact = factory.SubFactory(ContactFactory)
-    phone_number = factory.Faker('phone_number')
+    phone_number = factory.LazyFunction(lambda: '+' + ''.join([str(fake.random_digit()) for _ in range(10)]))
     phone_type = factory.Faker('random_element', elements=[x[0] for x in PhoneType.CHOICES])
     is_primary = False
 

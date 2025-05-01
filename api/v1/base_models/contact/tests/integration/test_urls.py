@@ -12,7 +12,7 @@ class TestContactURLs:
         """Test that the contact list URL resolves to the correct view."""
         url = reverse('v1:contact:contact-list')
         assert resolve(url).func.cls == ContactViewSet
-        assert resolve(url).func.actions == {'get': 'list', 'post': 'create'}
+        assert resolve(url).func.actions == {'get': 'list', 'post': 'create', 'head': 'list'}
 
     def test_contact_detail_url(self):
         """Test that the contact detail URL resolves to the correct view."""
@@ -22,7 +22,8 @@ class TestContactURLs:
             'get': 'retrieve',
             'put': 'update',
             'patch': 'partial_update',
-            'delete': 'destroy'
+            'delete': 'destroy',
+            'head': 'retrieve'
         }
 
     def test_url_patterns(self):

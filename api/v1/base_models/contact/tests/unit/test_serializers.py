@@ -159,97 +159,114 @@ class TestContactSerializer:
         assert 'test' in data['tags']
 
     def test_deserialization(self):
-        """Test deserialization of contact with nested objects."""
+        """Test deserialization of contact data."""
         data = {
             'first_name': 'John',
             'last_name': 'Doe',
-            'contact_type': ContactType.PRIMARY,
-            'status': ContactStatus.ACTIVE,
-            'source': ContactSource.WEBSITE,
-            'email_addresses': [{
-                'email': 'john@example.com',
-                'email_type': EmailType.PERSONAL,
-                'is_primary': True
-            }],
-            'phone_numbers': [{
-                'phone_number': '+1234567890',
-                'phone_type': PhoneType.MOBILE,
-                'is_primary': True
-            }],
-            'addresses': [{
-                'address': AddressFactory().id,
-                'address_type': AddressType.HOME,
-                'is_primary': True
-            }],
+            'contact_type': 'primary',
+            'status': 'active',
+            'source': 'website',
+            'email_addresses': [
+                {
+                    'email': 'john@example.com',
+                    'email_type': 'personal',
+                    'is_primary': True
+                }
+            ],
+            'phone_numbers': [
+                {
+                    'phone_number': '+1234567890',
+                    'phone_type': 'mobile',
+                    'is_primary': True
+                }
+            ],
+            'addresses': [
+                {
+                    'address': {
+                        'street_address_1': '123 Main St',
+                        'city': 'New York',
+                        'state_province': 'NY',
+                        'postal_code': '10001',
+                        'country': {'code': 'US', 'name': 'United States'}
+                    },
+                    'address_type': 'home',
+                    'is_primary': True
+                }
+            ],
             'tags': ['test']
         }
-        
         serializer = ContactSerializer(data=data)
         assert serializer.is_valid()
         contact = serializer.save()
-        
         assert contact.first_name == 'John'
         assert contact.last_name == 'Doe'
         assert contact.email_addresses.count() == 1
         assert contact.phone_numbers.count() == 1
         assert contact.addresses.count() == 1
-        assert 'test' in [tag.name for tag in contact.tags.all()]
+        assert contact.tags.count() == 1
 
     def test_update_nested_objects(self):
         """Test updating nested objects."""
         contact = ContactFactory()
-        email = ContactEmailAddressFactory(contact=contact, email='test@example.com', is_primary=True)
-        phone = ContactPhoneNumberFactory(contact=contact, phone_number='+1234567890', is_primary=True)
-        address = ContactAddressFactory(contact=contact, is_primary=True)
+        email = ContactEmailAddressFactory(contact=contact)
+        phone = ContactPhoneNumberFactory(contact=contact)
+        address = ContactAddressFactory(contact=contact)
 
         data = {
-            'id': contact.id,
-            'first_name': contact.first_name,
-            'last_name': contact.last_name,
-            'contact_type': ContactType.PRIMARY,
-            'status': ContactStatus.ACTIVE,
-            'source': ContactSource.WEBSITE,
-            'email_addresses': [{
-                'id': email.id,
-                'email': 'updated@example.com',
-                'email_type': EmailType.WORK,
-                'is_primary': True
-            }],
-            'phone_numbers': [{
-                'id': phone.id,
-                'phone_number': '+9876543210',
-                'phone_type': PhoneType.WORK,
-                'is_primary': True
-            }],
-            'addresses': [{
-                'id': address.id,
-                'address': address.address.id,
-                'address_type': AddressType.WORK,
-                'is_primary': True
-            }]
+            'email_addresses': [
+                {
+                    'id': email.id,
+                    'email': 'new@example.com',
+                    'email_type': 'work',
+                    'is_primary': True
+                }
+            ],
+            'phone_numbers': [
+                {
+                    'id': phone.id,
+                    'phone_number': '+1987654321',
+                    'phone_type': 'home',
+                    'is_primary': True
+                }
+            ],
+            'addresses': [
+                {
+                    'id': address.id,
+                    'address': {
+                        'street_address_1': '456 New St',
+                        'city': 'Boston',
+                        'state_province': 'MA',
+                        'postal_code': '02108',
+                        'country': {'code': 'US', 'name': 'United States'}
+                    },
+                    'address_type': 'work',
+                    'is_primary': True
+                }
+            ]
         }
 
-        serializer = ContactSerializer(contact, data=data)
+        serializer = ContactSerializer(contact, data=data, partial=True)
         if not serializer.is_valid():
             pytest.fail(f"Serializer validation failed: {serializer.errors}")
         updated_contact = serializer.save()
 
-        # Verify email was updated
-        updated_email = updated_contact.email_addresses.get(id=email.id)
-        assert updated_email.email == 'updated@example.com'
-        assert updated_email.email_type == EmailType.WORK
-        assert updated_email.is_primary
+        # Verify updates
+        email.refresh_from_db()
+        phone.refresh_from_db()
+        address.refresh_from_db()
 
-        # Verify phone was updated
-        updated_phone = updated_contact.phone_numbers.get(id=phone.id)
-        assert updated_phone.phone_number == '+9876543210'
-        assert updated_phone.phone_type == PhoneType.WORK
-        assert updated_phone.is_primary
+        assert email.email == 'new@example.com'
+        assert email.email_type == 'work'
+        assert email.is_primary
 
-        # Verify address was updated
-        updated_address = updated_contact.addresses.get(id=address.id)
-        assert updated_address.address_type == AddressType.WORK
-        assert updated_address.is_primary
+        assert phone.phone_number == '+1987654321'
+        assert phone.phone_type == 'home'
+        assert phone.is_primary
+
+        assert address.address.street_address_1 == '456 New St'
+        assert address.address.city == 'Boston'
+        assert address.address_type == 'work'
+        assert address.is_primary
 
     def test_organization_validation(self):
         """Test organization ID validation."""

@@ -8,6 +8,8 @@ from api.v1.base_models.contact.choices import ContactType, ContactStatus, Conta
 class ContactFilter(django_filters.FilterSet):
     """Filter for Contact model."""
     search = django_filters.CharFilter(method='search_filter')
+    first_name = django_filters.CharFilter(lookup_expr='icontains')
+    last_name = django_filters.CharFilter(lookup_expr='icontains')
     contact_type = django_filters.ChoiceFilter(choices=ContactType.CHOICES)
     status = django_filters.ChoiceFilter(choices=ContactStatus.CHOICES)
     source = django_filters.ChoiceFilter(choices=ContactSource.CHOICES)
@@ -19,7 +21,10 @@ class ContactFilter(django_filters.FilterSet):
 
     class Meta:
         model = Contact
-        fields = ['contact_type', 'status', 'source', 'has_organization']
+        fields = [
+            'first_name', 'last_name', 'contact_type',
+            'status', 'source', 'has_organization'
+        ]
 
     def search_filter(self, queryset, name, value):
         """Search across multiple fields."""

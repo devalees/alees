@@ -108,6 +108,9 @@ class TestContactViewSet:
 
         response = self.client.post(self.url, data, format='json')
         
+        if response.status_code != status.HTTP_201_CREATED:
+            print(f"Response data: {response.data}")
+        
         assert response.status_code == status.HTTP_201_CREATED
         
         contact = Contact.objects.get(id=response.data['id'])
