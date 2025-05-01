@@ -90,8 +90,8 @@ python manage.py migrate taggit
       *   Saving/Validating `metadata`, `custom_fields`.
       *   Tag assignment/filtering.
       *   **Remove any tests checking for field-level permission responses.**
-  [ ] Implement/Refine ViewSet methods and Serializer logic.
-  [ ] Run all API tests; expect pass. Refactor.
+  [x] Implement/Refine ViewSet methods and Serializer logic.
+  [x] Run all API tests; expect pass. Refactor.
 
 ## 4. Final Checks
 
@@ -103,9 +103,9 @@ python manage.py migrate taggit
 
 ## 5. Follow-up Actions / Post-Requisites
 
-[ ] Address TODOs.
-[ ] **CRITICAL:** Immediately refactor `ContactSerializer` to use `PrimaryKeyRelatedField(queryset=Organization.objects.all(), ...)` now that `Organization` is implemented. Update tests for `Contact` API to reflect this.
+[x] Address TODOs.
+[x] **CRITICAL:** Immediately refactor `ContactSerializer` to use `PrimaryKeyRelatedField(queryset=Organization.objects.all(), ...)` now that `Organization` is implemented. Update tests for `Contact` API to reflect this.
 [ ] Create Pull Request for Organization (and potentially the Contact refactor).
-[ ] Update API documentation.
+[x] Update API documentation.
 [ ] Ensure `OrganizationScoped` implementation uses this model.
 [ ] Ensure `OrganizationMembership` uses this model.
