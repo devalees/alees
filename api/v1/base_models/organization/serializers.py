@@ -130,5 +130,9 @@ class OrganizationTypeSerializer(serializers.ModelSerializer):
         fields = [
             'name',
             'description',
+            'created_at',
+            'updated_at',
+            'created_by',
+            'updated_by'
         ]
-        read_only_fields = ['name', 'description'] 
+        read_only_fields = ['name', 'description', 'created_at', 'updated_at', 'created_by', 'updated_by'] 
