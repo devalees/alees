@@ -10,6 +10,27 @@ class OrganizationSerializer(TaggitSerializer, serializers.ModelSerializer):
     tags = TagListSerializerField(required=False)
     custom_fields = serializers.JSONField(required=False, allow_null=True)
     metadata = serializers.JSONField(required=False, allow_null=True)
+    primary_contact = serializers.PrimaryKeyRelatedField(
+        queryset=Contact.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    primary_address = serializers.PrimaryKeyRelatedField(
+        queryset=Address.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    currency = serializers.SlugRelatedField(
+        slug_field='code',
+        queryset=Currency.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    parent = serializers.PrimaryKeyRelatedField(
+        queryset=Organization.objects.all(),
+        required=False,
+        allow_null=True
+    )
 
     class Meta:
         model = Organization

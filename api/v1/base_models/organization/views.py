@@ -1,13 +1,34 @@
 from rest_framework import viewsets, permissions, filters
-from django_filters.rest_framework import DjangoFilterBackend
-from .models import OrganizationType
-from .serializers import OrganizationTypeSerializer
+from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter
+from django_filters import filters as django_filters
+from taggit.managers import TaggableManager
+from .models import OrganizationType, Organization
+from .serializers import OrganizationTypeSerializer, OrganizationSerializer
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Prefetch
+from django.contrib.auth.models import Permission
+from django.contrib.contenttypes.models import ContentType
 
-from api.v1.base_models.organization.models import Organization
-from api.v1.base_models.organization.serializers import OrganizationSerializer
+class OrganizationFilter(FilterSet):
+    """
+    Custom filter set for Organization model.
+    """
+    tags = CharFilter(method='filter_tags')
+
+    def filter_tags(self, queryset, name, value):
+        if value:
+            return queryset.filter(tags__name__in=[value])
+        return queryset
+
+    class Meta:
+        model = Organization
+        fields = {
+            'organization_type': ['exact'],
+            'status': ['exact'],
+            'parent': ['exact'],
+            'tags': ['exact'],
+        }
 
 class OrganizationTypeViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -32,6 +53,32 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     queryset = Organization.objects.all()
     serializer_class = OrganizationSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_class = OrganizationFilter
+    search_fields = ['name', 'code']
+    ordering_fields = ['name', 'code', 'status', 'created_at']
+    ordering = ['name']  # Default ordering
+
+    def get_permissions(self):
+        """
+        Add model-level permissions based on the action.
+        """
+        if self.action == 'list':
+            permission = 'organization.view_organization'
+        elif self.action == 'retrieve':
+            permission = 'organization.view_organization'
+        elif self.action == 'create':
+            permission = 'organization.add_organization'
+        elif self.action in ['update', 'partial_update']:
+            permission = 'organization.change_organization'
+        elif self.action == 'destroy':
+            permission = 'organization.delete_organization'
+        else:
+            permission = None
+
+        if permission:
+            return [permissions.IsAuthenticated(), permissions.DjangoModelPermissions()]
+        return [permissions.IsAuthenticated()]
 
     def get_queryset(self):
         """
@@ -43,7 +90,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             'primary_address',
             'currency',
             'parent'
-        )
+        ).prefetch_related('tags')
 
     @action(detail=True, methods=['get'])
     def descendants(self, request, pk=None):
