@@ -21,6 +21,7 @@ from api.v1.base_models.contact.tests.factories import (
     ContactPhoneNumberFactory, ContactAddressFactory
 )
 from api.v1.base_models.common.address.tests.factories import AddressFactory
+from api.v1.base_models.organization.tests.factories import OrganizationFactory
 
 User = get_user_model()
 
@@ -160,12 +161,14 @@ class TestContactSerializer:
 
     def test_deserialization(self):
         """Test deserialization of contact data."""
+        organization = OrganizationFactory()
         data = {
             'first_name': 'John',
             'last_name': 'Doe',
             'contact_type': 'primary',
             'status': 'active',
             'source': 'website',
+            'linked_organization': organization.id,
             'email_addresses': [
                 {
                     'email': 'john@example.com',
@@ -200,10 +203,35 @@ class TestContactSerializer:
         contact = serializer.save()
         assert contact.first_name == 'John'
         assert contact.last_name == 'Doe'
+        assert contact.linked_organization == organization
         assert contact.email_addresses.count() == 1
         assert contact.phone_numbers.count() == 1
         assert contact.addresses.count() == 1
         assert contact.tags.count() == 1
+
+    def test_validation_with_invalid_organization(self):
+        """Test validation with invalid organization ID."""
+        data = {
+            'first_name': 'John',
+            'last_name': 'Doe',
+            'linked_organization': 999999  # Non-existent organization
+        }
+        serializer = ContactSerializer(data=data)
+        assert not serializer.is_valid()
+        assert 'linked_organization' in serializer.errors
+
+    def test_validation_with_organization_name_conflict(self):
+        """Test validation when both organization name and ID are provided."""
+        organization = OrganizationFactory()
+        data = {
+            'first_name': 'John',
+            'last_name': 'Doe',
+            'organization_name': 'Test Org',
+            'linked_organization': organization.id
+        }
+        serializer = ContactSerializer(data=data)
+        assert not serializer.is_valid()
+        assert 'organization_name' in serializer.errors
 
     def test_update_nested_objects(self):
         """Test updating nested objects."""
@@ -269,14 +297,13 @@ class TestContactSerializer:
         assert address.is_primary
 
     def test_organization_validation(self):
-        """Test organization ID validation."""
-        serializer = ContactSerializer(data={'organization_id': -1})
+        """Test validation with invalid organization ID."""
+        data = {
+            'linked_organization': -1  # Invalid organization ID
+        }
+        serializer = ContactSerializer(data=data)
         assert not serializer.is_valid()
-        assert 'organization_id' in serializer.errors
-
-        serializer = ContactSerializer(data={'linked_organization_id': -1})
-        assert not serializer.is_valid()
-        assert 'linked_organization_id' in serializer.errors
+        assert 'linked_organization' in serializer.errors
 
     def test_to_representation(self):
         """Test to_representation method."""

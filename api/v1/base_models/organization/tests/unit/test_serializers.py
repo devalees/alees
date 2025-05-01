@@ -7,10 +7,10 @@ from api.v1.base_models.organization.serializers import OrganizationSerializer
 from api.v1.base_models.organization.tests.factories import (
     OrganizationFactory,
     OrganizationTypeFactory,
-    ContactFactory,
     AddressFactory,
-    CurrencyFactory
+    CurrencyFactory,
 )
+from api.v1.base_models.contact.tests.factories import ContactFactory
 
 @pytest.fixture
 @pytest.mark.django_db

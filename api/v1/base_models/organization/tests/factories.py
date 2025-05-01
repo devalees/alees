@@ -1,7 +1,6 @@
 import factory
 from factory.django import DjangoModelFactory
 from api.v1.base_models.organization.models import OrganizationType, Organization
-from api.v1.base_models.contact.tests.factories import ContactFactory
 from api.v1.base_models.common.address.tests.factories import AddressFactory
 from api.v1.base_models.common.currency.tests.factories import CurrencyFactory
 
@@ -25,7 +24,7 @@ class OrganizationFactory(DjangoModelFactory):
     parent = None  # Will be set in tests if needed
     effective_date = factory.Faker('date_this_decade')
     end_date = None
-    primary_contact = factory.SubFactory(ContactFactory)
+    primary_contact = None  # Will be set in tests if needed
     primary_address = factory.SubFactory(AddressFactory)
     currency = factory.SubFactory(CurrencyFactory)
     timezone = factory.Iterator(['UTC', 'America/New_York', 'Europe/London'])

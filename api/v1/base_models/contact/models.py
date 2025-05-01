@@ -9,6 +9,7 @@ from taggit.models import TaggedItemBase
 
 from core.models import Timestamped, Auditable
 from api.v1.base_models.common.address.models import Address
+from api.v1.base_models.organization.models import Organization
 from api.v1.base_models.contact.choices import (
     ContactType, ContactStatus, ContactSource,
     EmailType, PhoneType, AddressType
@@ -50,11 +51,14 @@ class Contact(Timestamped, Auditable):
         blank=True,
         help_text=_('Name of the organization if not linked to an existing one')
     )
-    organization_id = models.IntegerField(
-        _('Organization ID'),
+    linked_organization = models.ForeignKey(
+        Organization,
+        on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        help_text=_('ID of the linked organization (temporary field)')
+        related_name='contacts',
+        verbose_name=_('Linked Organization'),
+        help_text=_('The organization this contact is linked to')
     )
     contact_type = models.CharField(
         _('Contact Type'),
@@ -103,7 +107,8 @@ class Contact(Timestamped, Auditable):
             models.Index(fields=['organization_name']),
             models.Index(fields=['contact_type']),
             models.Index(fields=['status']),
-            models.Index(fields=['source'])
+            models.Index(fields=['source']),
+            models.Index(fields=['linked_organization'])
         ]
 
     def __str__(self):
@@ -115,6 +120,8 @@ class Contact(Timestamped, Auditable):
             raise ValidationError(_('At least one name field (first or last) must be provided'))
         if self.custom_fields and not isinstance(self.custom_fields, dict):
             raise ValidationError(_('Custom fields must be a dictionary'))
+        if self.organization_name and self.linked_organization:
+            raise ValidationError(_('Cannot provide both organization name and linked organization'))
 
     @property
     def full_name(self):

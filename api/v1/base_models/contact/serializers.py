@@ -3,6 +3,7 @@ from rest_framework import serializers
 from taggit.serializers import TagListSerializerField, TaggitSerializer
 from api.v1.base_models.common.address.serializers import AddressSerializer
 from api.v1.base_models.common.address.models import Address
+from api.v1.base_models.organization.models import Organization
 
 from api.v1.base_models.contact.models import (
     Contact, ContactEmailAddress, ContactPhoneNumber, ContactAddress
@@ -227,13 +228,11 @@ class ContactSerializer(TaggitSerializer, serializers.ModelSerializer):
     phone_numbers = ContactPhoneNumberSerializer(many=True, required=False)
     addresses = ContactAddressSerializer(many=True, required=False)
     organization_name = serializers.CharField(required=False)
-    organization_id = serializers.IntegerField(
-        source='linked_organization_id',
-        write_only=True,
+    linked_organization = serializers.PrimaryKeyRelatedField(
+        queryset=Organization.objects.all(),
         allow_null=True,
         required=False
     )
-    linked_organization_id = serializers.IntegerField(required=False, allow_null=True)
     linked_organization_name = serializers.CharField(
         source='linked_organization.name',
         read_only=True,
@@ -241,36 +240,14 @@ class ContactSerializer(TaggitSerializer, serializers.ModelSerializer):
     )
     tags = TagListSerializerField(required=False)
 
-    def validate_organization_id(self, value):
-        """Validate organization ID."""
-        if value is not None and value < 0:
-            raise serializers.ValidationError("Invalid organization ID")
-        return value
-
-    def validate_linked_organization_id(self, value):
-        """Validate linked organization ID."""
-        if value is not None and value < 0:
-            raise serializers.ValidationError("Invalid linked organization ID")
-        return value
-
     def validate(self, attrs):
         """Validate the contact data."""
         logger.info("Starting contact validation with data: %s", attrs)
 
-        # First validate organization IDs
-        org_id = attrs.get('organization_id')
-        if org_id is not None and org_id < 0:
-            logger.error("Invalid organization_id: %s", org_id)
-            raise serializers.ValidationError({'organization_id': 'Organization ID must be a positive integer.'})
-
-        linked_org_id = attrs.get('linked_organization_id')
-        if linked_org_id is not None and linked_org_id < 0:
-            logger.error("Invalid linked_organization_id: %s", linked_org_id)
-            raise serializers.ValidationError({'linked_organization_id': 'Linked organization ID must be a positive integer.'})
-
         # Check for organization name and ID conflict
         org_name = attrs.get('organization_name')
-        if org_name and (org_id or linked_org_id):
+        linked_org = attrs.get('linked_organization')
+        if org_name and linked_org:
             logger.error("Cannot provide both organization name and organization ID")
             raise serializers.ValidationError({'organization_name': 'Cannot provide both organization name and organization ID'})
 
@@ -450,7 +427,7 @@ class ContactSerializer(TaggitSerializer, serializers.ModelSerializer):
         model = Contact
         fields = [
             'id', 'first_name', 'last_name', 'title', 'organization_name',
-            'organization_id', 'linked_organization_id', 'linked_organization_name',
+            'linked_organization', 'linked_organization_name',
             'contact_type', 'status', 'source', 'notes', 'tags', 'custom_fields',
             'email_addresses', 'phone_numbers', 'addresses',
             'created_at', 'updated_at'

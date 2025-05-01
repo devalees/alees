@@ -22,7 +22,7 @@ class ContactFactory(DjangoModelFactory):
     last_name = factory.Faker('last_name')
     title = factory.Faker('job')
     organization_name = factory.Faker('company')
-    organization_id = None  # Temporary solution until Organization model is implemented
+    linked_organization = None  # Will be set in tests if needed
     contact_type = factory.Faker('random_element', elements=[x[0] for x in ContactType.CHOICES])
     status = factory.Faker('random_element', elements=[x[0] for x in ContactStatus.CHOICES])
     source = factory.Faker('random_element', elements=[x[0] for x in ContactSource.CHOICES])

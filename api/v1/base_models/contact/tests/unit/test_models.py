@@ -93,7 +93,7 @@ class TestContactModel:
         assert Contact._meta.verbose_name == 'Contact'
         assert Contact._meta.verbose_name_plural == 'Contacts'
         assert Contact._meta.ordering == ['last_name', 'first_name']
-        assert len(Contact._meta.indexes) == 5
+        assert len(Contact._meta.indexes) == 6
 
 @pytest.mark.django_db
 class TestContactEmailAddressModel:

@@ -101,11 +101,15 @@ class Organization(Timestamped, Auditable, MPTTModel):
     timezone = models.CharField(
         max_length=50,
         default='UTC',
+        null=True,
+        blank=True,
         help_text=_("Default timezone for the organization")
     )
     language = models.CharField(
         max_length=10,
         default='en',
+        null=True,
+        blank=True,
         help_text=_("Default language preference")
     )
     tags = TaggableManager(blank=True)

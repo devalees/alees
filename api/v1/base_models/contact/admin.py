@@ -33,7 +33,7 @@ class ContactAdmin(admin.ModelAdmin):
     """Admin configuration for Contact model."""
     list_display = (
         'first_name', 'last_name', 'title', 'organization_name',
-        'contact_type', 'status', 'source'
+        'linked_organization', 'contact_type', 'status', 'source'
     )
     list_filter = ('contact_type', 'status', 'source')
     search_fields = ('first_name', 'last_name', 'organization_name')
@@ -46,7 +46,7 @@ class ContactAdmin(admin.ModelAdmin):
         (None, {
             'fields': (
                 'first_name', 'last_name', 'title', 'organization_name',
-                'organization_id', 'contact_type', 'status', 'source'
+                'linked_organization', 'contact_type', 'status', 'source'
             )
         }),
         (_('Additional Information'), {

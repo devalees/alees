@@ -17,7 +17,9 @@ class CurrencySerializer(serializers.ModelSerializer):
 
     def validate_code(self, value):
         """Validate the currency code."""
-        if not value or len(value) != 3:
+        if not value:
+            raise serializers.ValidationError("Currency code is required.")
+        if len(value) != 3:
             raise serializers.ValidationError("Currency code must be exactly 3 characters long.")
         return value.upper()
 

@@ -28,7 +28,7 @@ def test_organization_factory():
     assert org.parent is None
     assert org.effective_date is not None
     assert org.end_date is None
-    assert org.primary_contact is not None
+    assert org.primary_contact is None
     assert org.primary_address is not None
     assert org.currency is not None
     assert org.timezone in ['UTC', 'America/New_York', 'Europe/London']
