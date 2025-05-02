@@ -1,10 +1,11 @@
 from rest_framework import serializers
 from taggit.serializers import TagListSerializerField, TaggitSerializer
 
-from api.v1.base_models.organization.models import Organization, OrganizationType
+from api.v1.base_models.organization.models import Organization, OrganizationType, OrganizationMembership
 from api.v1.base_models.contact.models import Contact
 from api.v1.base_models.common.address.models import Address
 from api.v1.base_models.common.currency.models import Currency
+from django.contrib.auth.models import User, Group
 
 class OrganizationSerializer(TaggitSerializer, serializers.ModelSerializer):
     tags = TagListSerializerField(required=False)
@@ -135,4 +136,75 @@ class OrganizationTypeSerializer(serializers.ModelSerializer):
             'created_by',
             'updated_by'
         ]
-        read_only_fields = ['name', 'description', 'created_at', 'updated_at', 'created_by', 'updated_by'] 
+        read_only_fields = ['name', 'description', 'created_at', 'updated_at', 'created_by', 'updated_by']
+
+class OrganizationMembershipSerializer(serializers.ModelSerializer):
+    """Serializer for OrganizationMembership model"""
+    
+    user_detail = serializers.SerializerMethodField(read_only=True)
+    organization_detail = serializers.SerializerMethodField(read_only=True)
+    role_detail = serializers.SerializerMethodField(read_only=True)
+
+    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    organization = serializers.PrimaryKeyRelatedField(queryset=Organization.objects.all())
+    role = serializers.PrimaryKeyRelatedField(queryset=Group.objects.all())
+
+    class Meta:
+        model = OrganizationMembership
+        fields = [
+            'id',
+            'user',
+            'user_detail',
+            'organization',
+            'organization_detail',
+            'role',
+            'role_detail',
+            'is_active',
+            'created_at',
+            'updated_at',
+            'created_by',
+            'updated_by'
+        ]
+        read_only_fields = [
+            'id',
+            'created_at',
+            'updated_at',
+            'created_by',
+            'updated_by'
+        ]
+
+    def get_user_detail(self, obj):
+        """Return nested user data"""
+        return {
+            'id': obj.user.id,
+            'username': obj.user.username,
+            'email': obj.user.email
+        }
+
+    def get_organization_detail(self, obj):
+        """Return nested organization data"""
+        return {
+            'id': obj.organization.id,
+            'name': obj.organization.name,
+            'code': obj.organization.code
+        }
+
+    def get_role_detail(self, obj):
+        """Return nested role data"""
+        return {
+            'id': obj.role.id,
+            'name': obj.role.name
+        }
+
+    def validate(self, attrs):
+        """Validate that the user is not already a member of the organization with the same role"""
+        if self.instance is None:  # Only check for new instances
+            if OrganizationMembership.objects.filter(
+                user=attrs['user'],
+                organization=attrs['organization'],
+                role=attrs['role']
+            ).exists():
+                raise serializers.ValidationError(
+                    "User is already a member of this organization with this role"
+                )
+        return attrs 

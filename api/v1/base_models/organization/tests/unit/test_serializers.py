@@ -11,6 +11,12 @@ from api.v1.base_models.organization.tests.factories import (
     CurrencyFactory,
 )
 from api.v1.base_models.contact.tests.factories import ContactFactory
+from api.v1.base_models.organization.tests.factories import (
+    OrganizationMembershipFactory,
+    GroupFactory,
+    UserFactory,
+)
+from api.v1.base_models.organization.serializers import OrganizationMembershipSerializer
 
 @pytest.fixture
 @pytest.mark.django_db
@@ -171,4 +177,125 @@ def test_serializer_representation(organization_type, contact, address, currency
     assert data['parent'] == organization.parent.id
     assert data['timezone'] == organization.timezone
     assert data['language'] == organization.language
-    assert set(data['tags']) == {'test', 'org'} 
+    assert set(data['tags']) == {'test', 'org'}
+
+@pytest.mark.django_db
+class TestOrganizationMembershipSerializer:
+    """Test cases for OrganizationMembershipSerializer"""
+
+    @pytest.fixture
+    def user(self):
+        """Create a test user"""
+        return UserFactory()
+
+    @pytest.fixture
+    def organization(self):
+        """Create a test organization"""
+        return OrganizationFactory()
+
+    @pytest.fixture
+    def role(self):
+        """Create a test role (Django Group)"""
+        return GroupFactory()
+
+    @pytest.fixture
+    def membership(self, user, organization, role):
+        """Create a test membership"""
+        return OrganizationMembershipFactory(
+            user=user,
+            organization=organization,
+            role=role,
+            is_active=True
+        )
+
+    def test_serializer_representation(self, membership):
+        """Test the serializer representation includes all required fields"""
+        serializer = OrganizationMembershipSerializer(membership)
+        data = serializer.data
+
+        assert 'id' in data
+        assert 'user' in data
+        assert 'organization' in data
+        assert 'role' in data
+        assert 'is_active' in data
+        assert 'created_at' in data
+        assert 'updated_at' in data
+        assert 'created_by' in data
+        assert 'updated_by' in data
+
+    def test_serializer_validation_unique_together(self, user, organization, role):
+        """Test that unique_together constraint is enforced"""
+        # Create first membership
+        OrganizationMembershipFactory(
+            user=user,
+            organization=organization,
+            role=role
+        )
+
+        # Try to create duplicate membership
+        data = {
+            'user': user.id,
+            'organization': organization.id,
+            'role': role.id,
+            'is_active': True
+        }
+        serializer = OrganizationMembershipSerializer(data=data)
+        assert not serializer.is_valid()
+        assert 'non_field_errors' in serializer.errors
+
+    def test_serializer_read_only_fields(self, membership):
+        """Test that read-only fields cannot be modified"""
+        data = {
+            'id': 999,  # Try to modify read-only field
+            'created_at': '2024-01-01T00:00:00Z',  # Try to modify read-only field
+            'updated_at': '2024-01-01T00:00:00Z',  # Try to modify read-only field
+            'created_by': 999,  # Try to modify read-only field
+            'updated_by': 999,  # Try to modify read-only field
+            'is_active': False  # This should be modifiable
+        }
+        serializer = OrganizationMembershipSerializer(membership, data=data, partial=True)
+        assert serializer.is_valid()
+        assert serializer.validated_data == {'is_active': False}
+
+    def test_serializer_nested_representation(self, membership):
+        """Test that nested user, organization, and role data is included"""
+        serializer = OrganizationMembershipSerializer(membership)
+        data = serializer.data
+
+        assert isinstance(data['user_detail'], dict)
+        assert 'id' in data['user_detail']
+        assert 'username' in data['user_detail']
+
+        assert isinstance(data['organization_detail'], dict)
+        assert 'id' in data['organization_detail']
+        assert 'name' in data['organization_detail']
+
+        assert isinstance(data['role_detail'], dict)
+        assert 'id' in data['role_detail']
+        assert 'name' in data['role_detail']
+
+    def test_serializer_create(self, user, organization, role):
+        """Test creating a new membership via serializer"""
+        data = {
+            'user': user.id,
+            'organization': organization.id,
+            'role': role.id,
+            'is_active': True
+        }
+        serializer = OrganizationMembershipSerializer(data=data)
+        assert serializer.is_valid()
+        membership = serializer.save()
+        assert membership.user == user
+        assert membership.organization == organization
+        assert membership.role == role
+        assert membership.is_active is True
+
+    def test_serializer_update(self, membership):
+        """Test updating a membership via serializer"""
+        data = {
+            'is_active': False
+        }
+        serializer = OrganizationMembershipSerializer(membership, data=data, partial=True)
+        assert serializer.is_valid()
+        updated_membership = serializer.save()
+        assert updated_membership.is_active is False 

@@ -1,8 +1,10 @@
 import factory
+from django.contrib.auth.models import Group
 from factory.django import DjangoModelFactory
-from api.v1.base_models.organization.models import OrganizationType, Organization
+from api.v1.base_models.organization.models import OrganizationType, Organization, OrganizationMembership
 from api.v1.base_models.common.address.tests.factories import AddressFactory
 from api.v1.base_models.common.currency.tests.factories import CurrencyFactory
+from api.v1.base_models.user.tests.factories import UserFactory
 
 class OrganizationTypeFactory(DjangoModelFactory):
     class Meta:
@@ -30,4 +32,25 @@ class OrganizationFactory(DjangoModelFactory):
     timezone = factory.Iterator(['UTC', 'America/New_York', 'Europe/London'])
     language = factory.Iterator(['en', 'fr', 'es'])
     metadata = factory.LazyFunction(lambda: {})
-    custom_fields = factory.LazyFunction(lambda: {}) 
+    custom_fields = factory.LazyFunction(lambda: {})
+
+class GroupFactory(DjangoModelFactory):
+    """Factory for Django's Group model"""
+    
+    class Meta:
+        model = Group
+
+    name = factory.Sequence(lambda n: f'Group {n}')
+
+class OrganizationMembershipFactory(factory.django.DjangoModelFactory):
+    """Factory for OrganizationMembership model"""
+    
+    class Meta:
+        model = OrganizationMembership
+
+    user = factory.SubFactory(UserFactory)
+    organization = factory.SubFactory(OrganizationFactory)
+    role = factory.SubFactory(GroupFactory)
+    is_active = True
+    created_by = factory.SubFactory(UserFactory)
+    updated_by = factory.SubFactory(UserFactory) 
