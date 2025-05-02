@@ -2,6 +2,8 @@ import pytest
 from django.contrib.auth import get_user_model
 from api.v1.base_models.user.models import UserProfile
 from api.v1.base_models.user.tests.factories import UserFactory, UserProfileFactory
+from api.v1.base_models.organization.tests.factories import OrganizationFactory
+from api.v1.base_models.organization.models import OrganizationMembership
 
 User = get_user_model()
 
@@ -17,6 +19,11 @@ class TestUserProfile:
             email='test@example.com',
             password='testpass123'
         )
+
+    @pytest.fixture
+    def organization(self):
+        """Create a test organization"""
+        return OrganizationFactory()
 
     def test_profile_auto_created(self, user):
         """A UserProfile instance is automatically created when a User is created"""
@@ -51,4 +58,55 @@ class TestUserProfile:
         """Test the string representation of UserProfile."""
         user = UserFactory(username='testuser')
         profile = user.profile  # Profile is auto-created by signal
-        assert str(profile) == 'testuser' 
+        assert str(profile) == 'testuser'
+
+    def test_get_organizations_no_memberships(self, user):
+        """Test get_organizations() returns empty queryset when user has no memberships"""
+        organizations = user.get_organizations()
+        assert organizations.count() == 0
+
+    def test_get_organizations_one_active_membership(self, user, organization):
+        """Test get_organizations() returns organization when user has one active membership"""
+        OrganizationMembership.objects.create(
+            user=user,
+            organization=organization,
+            role=None,  # Role is optional
+            is_active=True
+        )
+        organizations = user.get_organizations()
+        assert organizations.count() == 1
+        assert organization in organizations
+
+    def test_get_organizations_multiple_active_memberships(self, user):
+        """Test get_organizations() returns all organizations when user has multiple active memberships"""
+        org1 = OrganizationFactory()
+        org2 = OrganizationFactory()
+        OrganizationMembership.objects.create(user=user, organization=org1, is_active=True)
+        OrganizationMembership.objects.create(user=user, organization=org2, is_active=True)
+        
+        organizations = user.get_organizations()
+        assert organizations.count() == 2
+        assert org1 in organizations
+        assert org2 in organizations
+
+    def test_get_organizations_only_active_memberships(self, user, organization):
+        """Test get_organizations() only returns organizations with active memberships"""
+        # Create an active membership
+        OrganizationMembership.objects.create(
+            user=user,
+            organization=organization,
+            is_active=True
+        )
+        
+        # Create an inactive membership
+        org2 = OrganizationFactory()
+        OrganizationMembership.objects.create(
+            user=user,
+            organization=org2,
+            is_active=False
+        )
+        
+        organizations = user.get_organizations()
+        assert organizations.count() == 1
+        assert organization in organizations
+        assert org2 not in organizations 

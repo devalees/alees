@@ -166,7 +166,9 @@ class OrganizationMembership(Timestamped, Auditable):
         Group,
         on_delete=models.PROTECT,
         related_name='organization_memberships',
-        verbose_name=_("Role (Group)")
+        verbose_name=_("Role (Group)"),
+        null=True,
+        blank=True
     )
     is_active = models.BooleanField(
         _("Is Active Member"),
@@ -194,8 +196,8 @@ class OrganizationMembership(Timestamped, Auditable):
 
     def clean(self):
         """Validate the membership."""
-        if not self.user or not self.organization or not self.role:
-            raise ValidationError(_("User, organization, and role are required."))
+        if not self.user or not self.organization:
+            raise ValidationError(_("User and organization are required."))
         
         # Check for existing membership
         existing = OrganizationMembership.objects.filter(

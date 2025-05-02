@@ -1,6 +1,6 @@
 from django.contrib import admin
 from mptt.admin import DraggableMPTTAdmin
-from .models import OrganizationType, Organization
+from .models import OrganizationType, Organization, OrganizationMembership
 
 @admin.register(OrganizationType)
 class OrganizationTypeAdmin(admin.ModelAdmin):
@@ -19,4 +19,14 @@ class OrganizationAdmin(DraggableMPTTAdmin):
     
     def indented_title(self, instance):
         return str(instance)
-    indented_title.short_description = 'Organization' 
+    indented_title.short_description = 'Organization'
+
+@admin.register(OrganizationMembership)
+class OrganizationMembershipAdmin(admin.ModelAdmin):
+    list_display = ('user', 'organization', 'role', 'is_active', 'updated_at')
+    list_filter = ('organization', 'role', 'is_active')
+    search_fields = ('user__username', 'organization__name', 'role__name')
+    list_select_related = ('user', 'organization', 'role')
+    raw_id_fields = ('user', 'organization', 'role')  # Better for large numbers
+    list_editable = ('is_active', 'role')
+    readonly_fields = ('created_at', 'created_by', 'updated_at', 'updated_by') 
