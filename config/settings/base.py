@@ -198,3 +198,6 @@ LOGGING = { # Base Logging config
 PHONENUMBER_DEFAULT_REGION = 'US'  # Default region for phone number parsing
 PHONENUMBER_DB_FORMAT = 'E164'  # Store phone numbers in E.164 format
 PHONENUMBER_DEFAULT_FORMAT = 'INTERNATIONAL'  # Display format
+
+# Organization Scoped Settings
+DISABLE_PERMISSIONS_CHECK = env.bool('DISABLE_PERMISSIONS_CHECK', default=False)

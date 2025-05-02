@@ -76,5 +76,7 @@ CHANNEL_LAYERS = { 'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'
 # Ensure dev tools are not installed/used in tests
 # These filters run on the lists inherited from base.py
 _DEVS_APPS_TO_REMOVE = ['debug_toolbar', 'django_extensions']
-INSTALLED_APPS = [app for app in INSTALLED_APPS if app not in _DEVS_APPS_TO_REMOVE]
+# Add the new test utility app
+INSTALLED_APPS = ['core.tests_app.apps.CoreTestsAppConfig'] + \
+                 [app for app in INSTALLED_APPS if app not in _DEVS_APPS_TO_REMOVE]
 MIDDLEWARE = [m for m in MIDDLEWARE if 'debug_toolbar' not in m]

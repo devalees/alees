@@ -3,6 +3,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.apps import apps # Import apps registry
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -26,3 +27,10 @@ if settings.DEBUG:
          # If debug_toolbar is not installed, just pass
          pass
     # --- End Debug Toolbar ---
+
+# --- Add Test App URLs if the app is installed (only during tests) ---
+if apps.is_installed('core.tests_app'):
+    urlpatterns += [
+        path('_test_utils/', include('core.tests_app.urls')),
+    ]
+# --- End Test App URLs ---

@@ -4,7 +4,7 @@ from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from crum import get_current_user
 
-__all__ = ['Timestamped', 'Auditable', 'TestTimestampedModel', 'TestAuditableModel']
+__all__ = ['Timestamped', 'Auditable', 'TestTimestampedModel', 'TestAuditableModel', 'OrganizationScoped']
 
 User = get_user_model()
 
@@ -94,4 +94,19 @@ class TestAuditableModel(Auditable):
     name = models.CharField(max_length=100)
 
     class Meta:
-        app_label = 'core' 
+        app_label = 'core'
+
+class OrganizationScoped(models.Model):
+    """
+    Abstract base model providing organization scoping.
+    """
+    organization = models.ForeignKey(
+        'api_v1_organization.Organization',  # Use string reference to avoid import
+        verbose_name=_("Organization"),
+        on_delete=models.PROTECT,  # Or CASCADE if appropriate, but PROTECT is safer
+        related_name='%(app_label)s_%(class)s_set',  # Standard pattern
+        db_index=True,
+        help_text=_("The Organization this record belongs to.")
+    )
+    class Meta:
+        abstract = True 
