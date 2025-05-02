@@ -25,17 +25,19 @@ class FileStorageFactory(DjangoModelFactory):
     original_filename = factory.LazyAttribute(lambda o: f"{uuid.uuid4()}.txt")
     # Use LazyFunction for ContentFile to generate unique content/name per instance
     file = factory.LazyFunction(
-        # Force Faker evaluation to string before encoding
-        lambda: ContentFile(str(factory.Faker('text')).encode('utf-8'), name=f"{uuid.uuid4()}.dat")
+        # Simpler content generation, avoiding potential Faker issues
+        lambda: ContentFile(b"Factory file content.", name=f"{uuid.uuid4()}.dat")
     )
     # file_size and mime_type are often populated post-save or by signals/views,
     # but can be set here for testing if needed.
-    # file_size = factory.LazyAttribute(lambda o: len(o.file.read())) # Requires reading file
-    mime_type = factory.Faker('mime_type')
+    file_size = len(b"Factory file content.") # Set size explicitly based on content
+    mime_type = 'text/plain' # Set mime type explicitly
 
     # Custom fields and tags
     custom_fields = factory.Dict({"project_code": factory.Faker('ean', length=8)})
-    # tags = factory.PostGenerationMethodCall('set', ['test', 'document']) # Example post-generation
+    tags = factory.PostGeneration(
+        lambda obj, create, results: obj.tags.add('factory_tag', 'test') if results is None else obj.tags.add(*results)
+    )
 
     # Ensure tags are handled correctly after creation
     @factory.post_generation

@@ -8,12 +8,13 @@ class TestCurrencySerializer(TestCase):
     """Unit tests for CurrencySerializer."""
 
     def setUp(self):
-        self.currency = CurrencyFactory()
-        self.serializer = CurrencySerializer(instance=self.currency)
+        pass
 
     def test_contains_expected_fields(self):
         """Test that serializer contains all expected fields."""
-        data = self.serializer.data
+        currency = CurrencyFactory()
+        serializer = CurrencySerializer(instance=currency)
+        data = serializer.data
         expected_fields = {
             'code', 'name', 'symbol', 'numeric_code', 
             'decimal_places', 'is_active', 'custom_fields'
@@ -85,11 +86,13 @@ class TestCurrencySerializer(TestCase):
 
     def test_representation(self):
         """Test serializer representation."""
-        data = self.serializer.data
-        self.assertEqual(data['code'], self.currency.code)
-        self.assertEqual(data['name'], self.currency.name)
-        self.assertEqual(data['symbol'], self.currency.symbol)
-        self.assertEqual(data['numeric_code'], self.currency.numeric_code)
-        self.assertEqual(data['decimal_places'], self.currency.decimal_places)
-        self.assertEqual(data['is_active'], self.currency.is_active)
-        self.assertEqual(data['custom_fields'], self.currency.custom_fields)
+        currency = CurrencyFactory()
+        serializer = CurrencySerializer(instance=currency)
+        data = serializer.data
+        self.assertEqual(data['code'], currency.code)
+        self.assertEqual(data['name'], currency.name)
+        self.assertEqual(data['symbol'], currency.symbol)
+        self.assertEqual(data['numeric_code'], currency.numeric_code)
+        self.assertEqual(data['decimal_places'], currency.decimal_places)
+        self.assertEqual(data['is_active'], currency.is_active)
+        self.assertEqual(data['custom_fields'], currency.custom_fields)

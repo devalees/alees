@@ -8,4 +8,5 @@ urlpatterns = [
     path('auth/', include('api.v1.base_models.common.auth.urls', namespace='auth')),
     path('', include('api.v1.base_models.common.currency.urls')),
     path('contact/', include('api.v1.base_models.contact.urls', namespace='contact')),
+    path('', include('api.v1.base_models.common.fileStorage.urls', namespace='file_storage')),
 ] 

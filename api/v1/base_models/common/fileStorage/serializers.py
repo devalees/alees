@@ -4,6 +4,7 @@ from django.template.defaultfilters import filesizeformat
 
 from .models import FileStorage
 from api.v1.base_models.user.serializers import UserSimpleSerializer
+from api.v1.base_models.organization.models import Organization
 from api.v1.base_models.organization.serializers import OrganizationSimpleSerializer
 
 # Assume this permission checking function exists elsewhere and can be imported
@@ -16,6 +17,22 @@ def has_perm_in_org(user, perm, organization):
     # Default to False for safety until real function is integrated and tested
     # Tests will specifically mock this to return True/False as needed.
     return False 
+
+class FileUploadSerializer(serializers.ModelSerializer):
+    """Serializer specifically for handling file uploads."""
+    # We might need to accept organization ID during upload
+    organization = serializers.PrimaryKeyRelatedField(
+        queryset=Organization.objects.all(), 
+        write_only=True # Usually we don't show the full org details on upload response
+    )
+    file = serializers.FileField(write_only=True, required=True)
+
+    class Meta:
+        model = FileStorage
+        fields = ('file', 'organization') # Fields required for upload
+        # Note: uploaded_by will be set in the view
+        # Other fields like original_filename, mime_type, size are set by model/storage
+
 
 class FileStorageSerializer(TaggitSerializer, serializers.ModelSerializer):
     """Serializer for the FileStorage model."""
