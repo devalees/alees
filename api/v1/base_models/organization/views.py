@@ -9,6 +9,8 @@ from rest_framework.response import Response
 from django.db.models import Prefetch
 from django.contrib.auth.models import Permission
 from django.contrib.contenttypes.models import ContentType
+from api.v1.base_models.organization.models import OrganizationMembership
+from api.v1.base_models.organization.serializers import OrganizationMembershipSerializer
 
 class OrganizationFilter(FilterSet):
     """
@@ -110,4 +112,63 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         organization = self.get_object()
         ancestors = organization.get_ancestors()
         serializer = self.get_serializer(ancestors, many=True)
-        return Response(serializer.data) 
+        return Response(serializer.data)
+
+class OrganizationMembershipFilter(FilterSet):
+    """Filter set for OrganizationMembership"""
+    class Meta:
+        model = OrganizationMembership
+        fields = {
+            'user': ['exact'],
+            'organization': ['exact'],
+            'role': ['exact'],
+            'is_active': ['exact'],
+        }
+
+class IsAdminOrReadOwnMemberships(permissions.BasePermission):
+    """Custom permission to only allow admins to perform all actions and users to read their own memberships"""
+
+    def has_permission(self, request, view):
+        # Allow admins full access
+        if request.user.is_staff:
+            return True
+
+        # Allow users to list their own memberships
+        if request.method == 'GET' and request.query_params.get('user') == str(request.user.id):
+            return True
+
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        # Allow admins full access
+        if request.user.is_staff:
+            return True
+
+        # Allow users to view their own memberships
+        if request.method in permissions.SAFE_METHODS and obj.user == request.user:
+            return True
+
+        return False
+
+class OrganizationMembershipViewSet(viewsets.ModelViewSet):
+    """ViewSet for OrganizationMembership model"""
+    
+    queryset = OrganizationMembership.objects.all()
+    serializer_class = OrganizationMembershipSerializer
+    permission_classes = [IsAdminOrReadOwnMemberships]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_class = OrganizationMembershipFilter
+    search_fields = ['user__username', 'organization__name', 'role__name']
+    ordering_fields = ['created_at', 'updated_at']
+    ordering = ['-created_at']
+
+    def perform_create(self, serializer):
+        """Set created_by and updated_by to the current user"""
+        serializer.save(
+            created_by=self.request.user,
+            updated_by=self.request.user
+        )
+
+    def perform_update(self, serializer):
+        """Set updated_by to the current user"""
+        serializer.save(updated_by=self.request.user) 

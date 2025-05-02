@@ -11,6 +11,8 @@ from api.v1.base_models.organization.tests.factories import (
     OrganizationTypeFactory,
     AddressFactory,
     CurrencyFactory,
+    OrganizationMembershipFactory,
+    GroupFactory,
 )
 from api.v1.base_models.contact.tests.factories import ContactFactory
 from api.v1.base_models.user.tests.factories import UserFactory
@@ -450,4 +452,141 @@ class TestOrganizationViewSet:
         )
         assert response.status_code == status.HTTP_200_OK
         org.refresh_from_db()
-        assert set(org.tags.names()) == {'tag3', 'tag4'} 
+        assert set(org.tags.names()) == {'tag3', 'tag4'}
+
+@pytest.mark.django_db
+class TestOrganizationMembershipEndpoints:
+    """Test cases for OrganizationMembership API endpoints"""
+
+    @pytest.fixture
+    def api_client(self):
+        """Create an API client"""
+        return APIClient()
+
+    @pytest.fixture
+    def admin_user(self):
+        """Create an admin user"""
+        user = UserFactory(is_staff=True, is_superuser=True)
+        return user
+
+    @pytest.fixture
+    def regular_user(self):
+        """Create a regular user"""
+        return UserFactory()
+
+    @pytest.fixture
+    def organization(self):
+        """Create a test organization"""
+        return OrganizationFactory()
+
+    @pytest.fixture
+    def role(self):
+        """Create a test role"""
+        return GroupFactory()
+
+    @pytest.fixture
+    def membership(self, regular_user, organization, role):
+        """Create a test membership"""
+        return OrganizationMembershipFactory(
+            user=regular_user,
+            organization=organization,
+            role=role
+        )
+
+    def test_list_memberships_admin(self, api_client, admin_user, membership):
+        """Test that admin can list all memberships"""
+        api_client.force_authenticate(user=admin_user)
+        url = reverse('v1:base_models:organization:organizationmembership-list')
+        response = api_client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data) >= 1
+
+    def test_list_memberships_filtered_by_user(self, api_client, admin_user, regular_user, membership):
+        """Test filtering memberships by user"""
+        api_client.force_authenticate(user=admin_user)
+        url = reverse('v1:base_models:organization:organizationmembership-list')
+        response = api_client.get(url, {'user': regular_user.id})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['count'] == 1
+        assert len(response.data['results']) == 1
+        assert response.data['results'][0]['user'] == regular_user.id
+
+    def test_list_memberships_filtered_by_organization(self, api_client, admin_user, organization, membership):
+        """Test filtering memberships by organization"""
+        api_client.force_authenticate(user=admin_user)
+        url = reverse('v1:base_models:organization:organizationmembership-list')
+        response = api_client.get(url, {'organization': organization.id})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['count'] == 1
+        assert len(response.data['results']) == 1
+        assert response.data['results'][0]['organization'] == organization.id
+
+    def test_create_membership_admin(self, api_client, admin_user, regular_user, organization, role):
+        """Test that admin can create a membership"""
+        api_client.force_authenticate(user=admin_user)
+        url = reverse('v1:base_models:organization:organizationmembership-list')
+        data = {
+            'user': regular_user.id,
+            'organization': organization.id,
+            'role': role.id,
+            'is_active': True
+        }
+        response = api_client.post(url, data)
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.data['user'] == regular_user.id
+        assert response.data['organization'] == organization.id
+        assert response.data['role'] == role.id
+
+    def test_create_membership_unauthorized(self, api_client, regular_user, organization, role):
+        """Test that regular user cannot create a membership"""
+        api_client.force_authenticate(user=regular_user)
+        url = reverse('v1:base_models:organization:organizationmembership-list')
+        data = {
+            'user': regular_user.id,
+            'organization': organization.id,
+            'role': role.id,
+            'is_active': True
+        }
+        response = api_client.post(url, data)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_retrieve_membership(self, api_client, admin_user, membership):
+        """Test retrieving a single membership"""
+        api_client.force_authenticate(user=admin_user)
+        url = reverse('v1:base_models:organization:organizationmembership-detail', args=[membership.id])
+        response = api_client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['id'] == membership.id
+
+    def test_update_membership(self, api_client, admin_user, membership):
+        """Test updating a membership"""
+        api_client.force_authenticate(user=admin_user)
+        url = reverse('v1:base_models:organization:organizationmembership-detail', args=[membership.id])
+        data = {'is_active': False}
+        response = api_client.patch(url, data)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['is_active'] is False
+
+    def test_delete_membership(self, api_client, admin_user, membership):
+        """Test deleting a membership"""
+        api_client.force_authenticate(user=admin_user)
+        url = reverse('v1:base_models:organization:organizationmembership-detail', args=[membership.id])
+        response = api_client.delete(url)
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+
+    def test_regular_user_cannot_list_all(self, api_client, regular_user, membership):
+        """Test that regular user cannot list all memberships"""
+        api_client.force_authenticate(user=regular_user)
+        url = reverse('v1:base_models:organization:organizationmembership-list')
+        response = api_client.get(url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_regular_user_can_list_own(self, api_client, regular_user, membership):
+        """Test that regular user can list their own memberships"""
+        api_client.force_authenticate(user=regular_user)
+        url = reverse('v1:base_models:organization:organizationmembership-list')
+        response = api_client.get(url, {'user': regular_user.id})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['count'] == 1
+        assert len(response.data['results']) == 1
+        assert response.data['results'][0]['user'] == regular_user.id 
