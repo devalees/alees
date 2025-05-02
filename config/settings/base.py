@@ -32,6 +32,7 @@ THIRD_PARTY_APPS = [
 ]
 LOCAL_APPS = [
     'core.apps.CoreConfig',
+    'core.rbac.apps.RbacConfig', # Added RBAC app
     'api.v1.base_models.common.auth.apps.AuthConfig',  # Updated auth app path
     'api.v1.base_models.common.apps.CommonConfig',
     'api.v1.base_models.common.address.apps.AddressConfig',  # Added address app
