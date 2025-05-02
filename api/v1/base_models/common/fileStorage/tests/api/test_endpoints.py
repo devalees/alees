@@ -4,6 +4,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from django.core.files.uploadedfile import SimpleUploadedFile
 from unittest.mock import patch
+from django.db.models.fields.files import FieldFile # Import the class to patch
 
 # Assuming models, factories, and helpers are correctly located
 from api.v1.base_models.common.fileStorage.models import FileStorage
@@ -168,7 +169,7 @@ def list_url():
 @pytest.fixture
 def detail_url(file_instance):
     # URL for the FileStorageViewSet detail endpoint
-    return reverse('v1:base_models:file_storage:file-detail', kwargs={'pk': file_instance.pk})
+    return reverse('v1:base_models:file_storage:file-detail', kwargs={'pk': file_instance.id})
 
 
 @pytest.mark.django_db
@@ -264,9 +265,58 @@ class TestFileStorageViewSet:
         response = api_client.get(detail_url)
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    # --- Placeholder for Delete Tests ---
-    # def test_delete_success(self, ...):
-    #     pass
+    def test_delete_success_with_perm(self, mocker, api_client, detail_url, file_instance, user_in_org):
+        """Test DELETE endpoint success with correct permission."""
+        # Assign delete permission
+        perm = get_permission(FileStorage, 'delete_filestorage')
+        user_in_org.user_permissions.add(perm)
+        api_client.force_authenticate(user=user_in_org)
 
-    # def test_delete_no_permission(self, ...):
-    #     pass
+        # Mock the file deletion on the FieldFile class itself
+        # mock_delete = mocker.patch.object(file_instance.file, 'delete')
+        mock_delete = mocker.patch.object(FieldFile, 'delete')
+
+        # --- DEBUG: Print type of file attribute ---
+        # print(f"\nDEBUG: Type of file_instance.file: {type(file_instance.file)}\n")
+        # --- END DEBUG ---
+
+        response = api_client.delete(detail_url)
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert not FileStorage.objects.filter(pk=file_instance.pk).exists()
+        # Check the call on the mock applied to the class
+        # When patching a class method called by an instance, 
+        # assert_called_once_with checks the args *after* self.
+        # mock_delete.assert_called_once_with(file_instance.file, save=False) # Incorrect
+        mock_delete.assert_called_once_with(save=False) # Correct: only check kwargs
+
+    def test_delete_no_permission(self, api_client, detail_url, file_instance, user_in_org):
+        """Test DELETE endpoint fails without correct permission."""
+        # DO NOT assign delete permission
+        api_client.force_authenticate(user=user_in_org)
+
+        response = api_client.delete(detail_url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert FileStorage.objects.filter(pk=file_instance.pk).exists()
+
+    def test_delete_different_org(self, api_client, file_instance, user_in_org):
+        """Test DELETE endpoint fails for file in different organization."""
+        # Assign delete permission
+        perm = get_permission(FileStorage, 'delete_filestorage')
+        user_in_org.user_permissions.add(perm)
+        api_client.force_authenticate(user=user_in_org)
+
+        # Create a file in a different org
+        other_org = OrganizationFactory()
+        other_file = FileStorageFactory(organization=other_org)
+        other_detail_url = reverse('v1:base_models:file_storage:file-detail', kwargs={'pk': other_file.pk})
+
+        response = api_client.delete(other_detail_url)
+        # Should be 404 because the OrgScoped mixin filters it out
+        assert response.status_code == status.HTTP_404_NOT_FOUND 
+        assert FileStorage.objects.filter(pk=other_file.pk).exists()
+
+    def test_delete_unauthenticated(self, api_client, detail_url, file_instance):
+        """Test DELETE endpoint fails for unauthenticated user."""
+        response = api_client.delete(detail_url)
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert FileStorage.objects.filter(pk=file_instance.pk).exists()

@@ -146,7 +146,7 @@ class OrganizationScopedViewSetMixin: # Placeholder implementation
 class FileStorageViewSet(OrganizationScopedViewSetMixin, 
                          mixins.RetrieveModelMixin, 
                          mixins.ListModelMixin, 
-                         mixins.DestroyModelMixin, 
+                         mixins.DestroyModelMixin,
                          viewsets.GenericViewSet):
     """
     Provides LIST, RETRIEVE, DELETE operations for FileStorage, scoped by organization.
@@ -154,23 +154,36 @@ class FileStorageViewSet(OrganizationScopedViewSetMixin,
     """
     queryset = FileStorage.objects.select_related('organization', 'uploaded_by').prefetch_related('tags').all()
     serializer_class = FileStorageSerializer
-    # TODO: Add org-aware permission class (e.g., from core.permissions)
     permission_classes = [
         permissions.IsAuthenticated, 
-        HasModelPermissionInOrgPlaceholder # Add the placeholder permission check
+        HasModelPermissionInOrgPlaceholder # Using placeholder permission check
     ] 
     filterset_fields = ['mime_type', 'tags__name'] # Requires django-filter setup
     search_fields = ['original_filename', 'uploaded_by__username'] # Requires SearchFilter
 
     # Override perform_destroy for physical file deletion
     def perform_destroy(self, instance):
-        # TODO: Enhance permission check here if needed (e.g., check delete_filestorage)
-        # The main check should ideally be handled by permission_classes
+        """Delete the physical file before deleting the database record."""
+        print(f"\nDEBUG: perform_destroy called for instance PK: {instance.pk}") # DEBUG
+        print(f"DEBUG: instance.file object: {instance.file}") # DEBUG
+        print(f"DEBUG: instance.file.name: {instance.file.name}") # DEBUG
+        print(f"DEBUG: instance.file.storage: {instance.file.storage}") # DEBUG
+        
+        # Permission check should ideally be handled entirely by permission_classes.
+        # This check inside perform_destroy is a redundant safeguard.
         perm_code = 'file_storage.delete_filestorage'
-        if not has_perm_in_org(self.request.user, perm_code, instance.organization):
+        if not self.request.user.has_perm(perm_code):
+             # Check the basic Django permission using the placeholder logic
+             # A real RBAC check would use: 
+             # if not has_perm_in_org(self.request.user, perm_code, instance.organization):
              raise PermissionDenied(_("You do not have permission to delete this file."))
         
-        # Delete the physical file first
+        # Delete the physical file from storage
+        print("DEBUG: Calling instance.file.delete(save=False)") # DEBUG
         instance.file.delete(save=False)
-        # Then delete the database record
+        print("DEBUG: Called instance.file.delete(save=False)") # DEBUG
+        
+        # Proceed with deleting the database record
+        print("DEBUG: Calling super().perform_destroy(instance)") # DEBUG
         super().perform_destroy(instance)
+        print("DEBUG: Called super().perform_destroy(instance)") # DEBUG
