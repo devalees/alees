@@ -7,6 +7,13 @@ from .models import UserProfile
 
 User = get_user_model()
 
+class UserSimpleSerializer(serializers.ModelSerializer):
+    """A simple serializer for User, showing only essential fields."""
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'email') # Add/remove fields as needed for context
+        read_only_fields = fields # Typically read-only in this context
+
 class UserProfileSerializer(serializers.ModelSerializer):
     """
     Serializer for UserProfile model.
@@ -73,5 +80,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
         """
         internal_value = super().to_internal_value(data)
         if 'profile_picture' in data and data['profile_picture'] is None:
+            internal_value['profile_picture'] = None
+        # Explicitly handle None for profile_picture
+        if internal_value.get('profile_picture') == "":
             internal_value['profile_picture'] = None
         return internal_value 

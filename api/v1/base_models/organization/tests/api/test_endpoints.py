@@ -199,39 +199,69 @@ class TestOrganizationViewSet:
     def detail_url(self, organization):
         return reverse('v1:base_models:organization:organization-detail', kwargs={'pk': organization.id})
 
-    def test_list_with_filters(self, api_client, list_url, organization, org_type, parent_org, user):
-        """Test LIST endpoint with various filters"""
+    def test_list_filter_by_type_and_parent(self, api_client, list_url, organization, org_type, parent_org, user):
+        """Test LIST endpoint filtering by organization_type and parent."""
         # Add view permission
         user.user_permissions.add(get_permission(Organization, 'view_organization'))
         api_client.force_authenticate(user=user)
 
-        # Create test data
-        active_org = OrganizationFactory(status='active')
-        inactive_org = OrganizationFactory(status='inactive')
-        tagged_org = OrganizationFactory()
-        tagged_org.tags.add('test-tag')
-
         # Test filter by type
         response = api_client.get(f"{list_url}?organization_type={org_type.id}")
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data['results']) == 1
+        # Assuming 'organization' fixture is the only one with this type in basic setup
+        assert len(response.data['results']) == 1 
         assert response.data['results'][0]['id'] == organization.id
-
-        # Test filter by status
-        response = api_client.get(f"{list_url}?status=active")
-        assert response.status_code == status.HTTP_200_OK
-        assert any(org['id'] == active_org.id for org in response.data['results'])
 
         # Test filter by parent
         response = api_client.get(f"{list_url}?parent={parent_org.id}")
         assert response.status_code == status.HTTP_200_OK
+        # Debug print removed
+        # Assuming 'organization' fixture is the only one with this parent
         assert len(response.data['results']) == 1
         assert response.data['results'][0]['id'] == organization.id
 
-        # Test filter by tags
-        response = api_client.get(f"{list_url}?tags=test-tag")
+    def test_list_filter_by_status(self, api_client, list_url, user):
+        """Test LIST endpoint filtering by status."""
+        user.user_permissions.add(get_permission(Organization, 'view_organization'))
+        api_client.force_authenticate(user=user)
+
+        active_org = OrganizationFactory(status='active')
+        inactive_org = OrganizationFactory(status='inactive')
+
+        # Test filter by status=active
+        response = api_client.get(f"{list_url}?status=active")
         assert response.status_code == status.HTTP_200_OK
-        assert any(org['id'] == tagged_org.id for org in response.data['results'])
+        results_ids = {org['id'] for org in response.data['results']}
+        assert active_org.id in results_ids
+        assert inactive_org.id not in results_ids
+
+        # Test filter by status=inactive
+        response = api_client.get(f"{list_url}?status=inactive")
+        assert response.status_code == status.HTTP_200_OK
+        results_ids = {org['id'] for org in response.data['results']}
+        assert inactive_org.id in results_ids
+        assert active_org.id not in results_ids
+
+    def test_list_filter_by_tags(self, api_client, list_url, user):
+        """Test LIST endpoint filtering by tags."""
+        user.user_permissions.add(get_permission(Organization, 'view_organization'))
+        api_client.force_authenticate(user=user)
+
+        tagged_org = OrganizationFactory()
+        tagged_org.tags.add('test-tag-filter')
+        untagged_org = OrganizationFactory()
+
+        # Test filter by tags
+        response = api_client.get(f"{list_url}?tags=test-tag-filter")
+        assert response.status_code == status.HTTP_200_OK
+        results_ids = {org['id'] for org in response.data['results']}
+        assert tagged_org.id in results_ids
+        assert untagged_org.id not in results_ids
+
+        # Test filtering by a non-existent tag returns empty
+        response = api_client.get(f"{list_url}?tags=non-existent-tag")
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data['results']) == 0
 
     def test_create_organization(self, api_client, list_url, org_type, contact, address, currency, parent_org, user):
         """Test CREATE endpoint with valid and invalid data"""

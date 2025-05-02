@@ -6,6 +6,14 @@ from api.v1.base_models.contact.models import Contact
 from api.v1.base_models.common.address.models import Address
 from api.v1.base_models.common.currency.models import Currency
 from django.contrib.auth.models import User, Group
+from api.v1.base_models.user.serializers import UserSimpleSerializer
+
+class OrganizationSimpleSerializer(serializers.ModelSerializer):
+    """A simple serializer for Organization, showing only essential fields."""
+    class Meta:
+        model = Organization
+        fields = ('id', 'name', 'code') # Add/remove fields as needed for context
+        read_only_fields = fields # Typically read-only in this context
 
 class OrganizationSerializer(TaggitSerializer, serializers.ModelSerializer):
     tags = TagListSerializerField(required=False)

@@ -2,6 +2,7 @@
 
 from .apps import CommonConfig
 
-__all__ = ['CommonConfig']
+# Removed imports from here
 
-default_app_config = 'api.v1.base_models.common.apps.CommonConfig' 
+# Define default_app_config if needed (check Django version)
+# default_app_config = 'api.v1.base_models.common.apps.CommonConfig' 

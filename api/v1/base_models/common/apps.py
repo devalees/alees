@@ -9,5 +9,5 @@ class CommonConfig(AppConfig):
     verbose_name = _("Common")
 
     def ready(self):
-        # Import signals or other initialization code here if needed
+        # No longer need to import sub-app models here
         pass 

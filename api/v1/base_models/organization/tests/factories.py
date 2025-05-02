@@ -4,7 +4,6 @@ from factory.django import DjangoModelFactory
 from api.v1.base_models.organization.models import OrganizationType, Organization, OrganizationMembership
 from api.v1.base_models.common.address.tests.factories import AddressFactory
 from api.v1.base_models.common.currency.tests.factories import CurrencyFactory
-from api.v1.base_models.user.tests.factories import UserFactory
 
 class OrganizationTypeFactory(DjangoModelFactory):
     class Meta:
@@ -48,9 +47,10 @@ class OrganizationMembershipFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = OrganizationMembership
 
-    user = factory.SubFactory(UserFactory)
+    # Use string paths to break potential circular imports
+    user = factory.SubFactory('api.v1.base_models.user.tests.factories.UserFactory')
     organization = factory.SubFactory(OrganizationFactory)
     role = factory.SubFactory(GroupFactory)
     is_active = True
-    created_by = factory.SubFactory(UserFactory)
-    updated_by = factory.SubFactory(UserFactory) 
+    created_by = factory.SubFactory('api.v1.base_models.user.tests.factories.UserFactory')
+    updated_by = factory.SubFactory('api.v1.base_models.user.tests.factories.UserFactory') 
