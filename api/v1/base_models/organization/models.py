@@ -3,6 +3,9 @@ from django.utils.translation import gettext_lazy as _
 from core.models import Timestamped, Auditable
 from mptt.models import MPTTModel, TreeForeignKey
 from taggit.managers import TaggableManager
+from django.contrib.auth.models import Group
+from django.conf import settings
+from django.core.exceptions import ValidationError
 
 class OrganizationType(Timestamped, Auditable):
     """
@@ -140,4 +143,65 @@ class Organization(Timestamped, Auditable, MPTTModel):
         order_insertion_by = ['name']
 
     def __str__(self):
-        return self.name 
+        return self.name
+
+
+class OrganizationMembership(Timestamped, Auditable):
+    """
+    Model representing a user's membership in an organization with a specific role.
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='organization_memberships',
+        verbose_name=_("User")
+    )
+    organization = models.ForeignKey(
+        'Organization',
+        on_delete=models.CASCADE,
+        related_name='memberships',
+        verbose_name=_("Organization")
+    )
+    role = models.ForeignKey(
+        Group,
+        on_delete=models.PROTECT,
+        related_name='organization_memberships',
+        verbose_name=_("Role (Group)")
+    )
+    is_active = models.BooleanField(
+        _("Is Active Member"),
+        default=True,
+        db_index=True
+    )
+
+    class Meta:
+        verbose_name = _("Organization Membership")
+        verbose_name_plural = _("Organization Memberships")
+        unique_together = ('user', 'organization')
+        ordering = ['organization__name', 'user__username']
+        indexes = [
+            models.Index(fields=['user', 'organization']),
+            models.Index(fields=['role']),
+            models.Index(fields=['is_active']),
+        ]
+
+    def __str__(self):
+        """Return a string representation of the membership."""
+        role_name = self.role.name if self.role else 'N/A'
+        user_name = self.user.username if self.user else 'N/A'
+        org_name = self.organization.name if self.organization else 'N/A'
+        return f"{user_name} in {org_name} as {role_name}"
+
+    def clean(self):
+        """Validate the membership."""
+        if not self.user or not self.organization or not self.role:
+            raise ValidationError(_("User, organization, and role are required."))
+        
+        # Check for existing membership
+        existing = OrganizationMembership.objects.filter(
+            user=self.user,
+            organization=self.organization
+        ).exclude(pk=self.pk).exists()
+        
+        if existing:
+            raise ValidationError(_("User already has a membership in this organization.")) 

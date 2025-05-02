@@ -2,11 +2,16 @@ import pytest
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from crum import impersonate
+from django.contrib.auth.models import Group
+from django.core.exceptions import ValidationError
+from django.test import TestCase
 
-from api.v1.base_models.organization.models import OrganizationType, Organization
+from api.v1.base_models.organization.models import OrganizationType, Organization, OrganizationMembership
 from api.v1.base_models.contact.models import Contact, ContactEmailAddress
 from api.v1.base_models.common.address.models import Address
 from api.v1.base_models.common.currency.models import Currency
+from api.v1.base_models.organization.tests.factories import OrganizationFactory, OrganizationTypeFactory
+from api.v1.base_models.user.tests.factories import UserFactory
 
 User = get_user_model()
 
@@ -84,6 +89,11 @@ def organization(user, org_type, parent_org, contact, address, currency):
             timezone="UTC",
             language="en"
         )
+
+@pytest.fixture
+def role(user):
+    with impersonate(user):
+        return Group.objects.create(name="Test Role")
 
 
 @pytest.mark.django_db
@@ -195,4 +205,88 @@ class TestOrganization:
         organization.metadata = {"key": "value"}
         organization.save()
         organization.refresh_from_db()
-        assert organization.metadata == {"key": "value"} 
+        assert organization.metadata == {"key": "value"}
+
+
+@pytest.mark.django_db
+class TestOrganizationMembership:
+    """Test cases for the OrganizationMembership model."""
+    def test_membership_creation(self, user, organization, role):
+        """Test that an OrganizationMembership can be created with required fields."""
+        with impersonate(user):
+            membership = OrganizationMembership.objects.create(
+                user=user,
+                organization=organization,
+                role=role
+            )
+            assert membership.user == user
+            assert membership.organization == organization
+            assert membership.role == role
+            assert membership.is_active is True
+
+    def test_unique_together_constraint(self, user, organization, role):
+        """Test that a user can only have one membership per organization."""
+        with impersonate(user):
+            # Create first membership
+            membership = OrganizationMembership(
+                user=user,
+                organization=organization,
+                role=role
+            )
+            membership.full_clean()
+            membership.save()
+
+            # Attempt to create duplicate membership
+            duplicate = OrganizationMembership(
+                user=user,
+                organization=organization,
+                role=role
+            )
+            with pytest.raises(ValidationError):
+                duplicate.full_clean()
+
+    def test_default_values(self, user, organization, role):
+        """Test default values are set correctly."""
+        with impersonate(user):
+            membership = OrganizationMembership.objects.create(
+                user=user,
+                organization=organization,
+                role=role
+            )
+            assert membership.is_active is True
+
+    def test_foreign_key_constraints(self, user, organization, role):
+        """Test that foreign key constraints work correctly."""
+        with impersonate(user):
+            membership = OrganizationMembership.objects.create(
+                user=user,
+                organization=organization,
+                role=role
+            )
+            assert membership.user.id == user.id
+            assert membership.organization.id == organization.id
+            assert membership.role.id == role.id
+
+    def test_string_representation(self, user, organization, role):
+        """Test the string representation of an OrganizationMembership."""
+        with impersonate(user):
+            membership = OrganizationMembership.objects.create(
+                user=user,
+                organization=organization,
+                role=role
+            )
+            expected = f"{user.username} in {organization.name} as {role.name}"
+            assert str(membership) == expected
+
+    def test_inherited_fields(self, user, organization, role):
+        """Test that inherited fields from Timestamped and Auditable exist."""
+        with impersonate(user):
+            membership = OrganizationMembership.objects.create(
+                user=user,
+                organization=organization,
+                role=role
+            )
+            assert membership.created_at is not None
+            assert membership.updated_at is not None
+            assert membership.created_by == user
+            assert membership.updated_by == user 
