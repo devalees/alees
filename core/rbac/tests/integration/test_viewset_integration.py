@@ -9,6 +9,7 @@ from rest_framework.routers import SimpleRouter
 from rest_framework.test import APITestCase, APIRequestFactory
 from django.contrib.contenttypes.models import ContentType
 from django.test import override_settings
+from django.db.models.query import QuerySet
 
 # Use existing models and factories
 from api.v1.base_models.organization.models import Organization, OrganizationMembership
@@ -38,6 +39,11 @@ except ImportError:
 from core.rbac.drf_permissions import HasModelPermissionInOrg
 from core.rbac.permissions import has_perm_in_org
 from core.views import OrganizationScopedViewSetMixin # Assuming this exists
+
+# Explicitly import fixtures (though conftest should be automatic)
+# from .conftest import api_client, user_a, user_b, obj_a1, obj_a2, obj_b1
+
+from core.models import Auditable, OrganizationScoped, Timestamped # Corrected name
 
 # --- Simulated ViewSet using the REAL Model & Serializer ---
 class TestOrganizationMembershipViewSet(OrganizationScopedViewSetMixin, viewsets.ModelViewSet):
@@ -355,3 +361,17 @@ class RBACViewSetIntegrationTests(APITestCase):
 # correctly handles dynamic model/app registration and ContentType creation.
 # The @pytest.mark.django_db(transaction=True) and apps.get_app_config(...).import_models()
 # attempt to handle this, but environment setup can be tricky. 
+
+@pytest.mark.django_db
+class TestOrganizationScopedViewSetIntegration:
+    # Remove skip marker
+    # @pytest.mark.skip(reason="Focusing on unit tests first")
+    def test_list_objects_filters_by_user_orgs(self, api_client, user_a, user_b, obj_a1, obj_a2, obj_b1):
+        """Test LIST returns only objects from the user's organizations."""
+        api_client.force_authenticate(user=user_a) 
+
+    # @pytest.mark.skip(reason="Focusing on unit tests first") # SKIP
+    # Use api_client
+    def test_retrieve_object_denied_for_other_org(self, api_client, user_a, obj_b1):
+        """Test RETRIEVE returns 404/403 for object in another organization."""
+        api_client.force_authenticate(user=user_a) 

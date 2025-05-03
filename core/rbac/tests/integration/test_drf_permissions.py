@@ -1,47 +1,42 @@
 import pytest
 from unittest import mock
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
-from rest_framework.test import APIRequestFactory
+from rest_framework.test import APIRequestFactory, APIClient
 from rest_framework.views import APIView
 from rest_framework import viewsets
-from django.contrib.auth.models import AnonymousUser # Import AnonymousUser
+from django.contrib.auth.models import AnonymousUser, User, Permission
+from django.contrib.contenttypes.models import ContentType
+from django.db.utils import IntegrityError
 
 # Adjust imports based on actual locations
-from api.v1.base_models.organization.models import Organization
+from api.v1.base_models.organization.models import Organization, OrganizationMembership
 from api.v1.base_models.user.tests.factories import UserFactory
 from api.v1.base_models.organization.tests.factories import (
     OrganizationFactory,
-    OrganizationTypeFactory
+    OrganizationTypeFactory,
+    OrganizationMembershipFactory
 )
 
 # This import will fail until the class is created (TDD)
-from core.rbac.drf_permissions import HasModelPermissionInOrg
+from core.rbac.drf_permissions import HasModelPermissionInOrg, CanAccessOrganizationObject
 
-# --- Mocks and Fixtures --- 
+# Import the model from the test app
+from core.tests_app.models import ConcreteScopedModel
 
-@pytest.fixture
-def org_type():
-    return OrganizationTypeFactory()
+# --- Fixtures ---
 
-@pytest.fixture
-def org_a(org_type):
-    return OrganizationFactory(organization_type=org_type)
-
-@pytest.fixture
-def org_b(org_type):
-    return OrganizationFactory(organization_type=org_type)
-
-@pytest.fixture
-def user():
-    return UserFactory()
-
-@pytest.fixture
-def super_user():
-    return UserFactory(is_superuser=True)
+@pytest.fixture(scope="module") # Make module-scoped
+def api_client():
+    """Provides an APIClient instance for the entire test module."""
+    return APIClient()
 
 @pytest.fixture
 def factory():
+    return APIRequestFactory()
+
+@pytest.fixture
+def request_factory():
     return APIRequestFactory()
 
 # Mock ViewSet simulating one that uses Organization model
@@ -61,6 +56,7 @@ class MockOrganizationViewSet(viewsets.ViewSet):
 
 @pytest.mark.django_db
 class TestHasModelPermissionInOrg:
+    """Tests for the HasModelPermissionInOrg permission class."""
 
     @pytest.mark.parametrize(
         "action, method, expected_perm_check, setup_object, should_have_perm, expected_result",
@@ -221,3 +217,56 @@ class TestHasModelPermissionInOrg:
         # Removed the AttributeError check as we now manually determine the codename
         # except AttributeError as e:
         #     pytest.fail(f"AttributeError during permission check verification: {e}") 
+
+    # @pytest.mark.skip(reason="Integration test - requires deeper RBAC setup or mocks")
+    def test_permission_denied_user_in_different_org(self, api_client, user_a, org_b, obj_in_org_b):
+        """Test user from Org A cannot access object in Org B."""
+        # Instantiate the correct permission class
+        permission = HasModelPermissionInOrg()
+        
+        # Create a dummy request with the user
+        request = APIRequestFactory().get('/dummy-url/')
+        request.user = user_a
+        
+        # Assert permission check (should fail if logic requires same org or specific perm)
+        # This test is currently ill-defined for HasModelPermissionInOrg which expects a specific perm check
+        # For now, let's assume it should return False if the internal has_perm_in_org is called and returns False
+        # We need to mock has_perm_in_org to simulate lack of specific permission
+        with patch('core.rbac.drf_permissions.has_perm_in_org', return_value=False) as mock_check:
+            # Pass a dummy view instance (required by has_object_permission)
+            view_instance = MockOrganizationViewSet() 
+            view_instance.action = 'retrieve' # Simulate an action
+            assert permission.has_object_permission(request, view_instance, obj_in_org_b) is False
+            # Verify the check was made
+            # Correct the expected permission based on the ConcreteScopedModel
+            expected_perm = 'core_tests_app.view_concretescopedmodel' # Based on retrieve action
+            mock_check.assert_called_once_with(user_a, expected_perm, obj_in_org_b)
+
+@pytest.mark.django_db
+class TestCanAccessOrganizationObject:
+    """Tests for the CanAccessOrganizationObject permission class."""
+
+    def test_permission_granted_user_in_org(self, user_a, org_a, obj_in_org_a, request_factory):
+        """Test user from Org A can access object in Org A."""
+        request = request_factory.get('/dummy-url') # Create a dummy request
+        request.user = user_a
+        permission = CanAccessOrganizationObject()
+        assert permission.has_object_permission(request, None, obj_in_org_a) is True
+
+    # @pytest.mark.skip(reason="Integration test - requires deeper RBAC setup or mocks")
+    def test_permission_denied_user_in_different_org(self, user_a, org_b, obj_in_org_b, request_factory):
+        """Test user from Org A cannot access object in Org B."""
+        request = request_factory.get('/dummy-url') # Create a dummy request
+        request.user = user_a
+        permission = CanAccessOrganizationObject()
+        # Expect False because user_a is not in org_b
+        assert permission.has_object_permission(request, None, obj_in_org_b) is False
+
+    # Remove skip marker
+    # @pytest.mark.skip(reason="Integration test - requires deeper RBAC setup or mocks")
+    def test_permission_granted_superuser(self, super_user, org_a, obj_in_org_a, request_factory):
+        """Test superuser can access any object regardless of organization."""
+        request = request_factory.get('/dummy-url')
+        request.user = super_user
+        permission = CanAccessOrganizationObject()
+        assert permission.has_object_permission(request, None, obj_in_org_a) is True 

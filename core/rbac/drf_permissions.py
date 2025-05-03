@@ -1,5 +1,12 @@
+from functools import wraps
+import logging # <-- Use standard logging
 from rest_framework import permissions
 from .permissions import has_perm_in_org # Import helper
+# from django.utils.log import logger # <-- Remove incorrect import
+from api.v1.base_models.organization.models import OrganizationMembership # Corrected import path
+
+# Instantiate logger for this module
+logger = logging.getLogger(__name__)
 
 def _get_required_permission(view_action, model_meta):
      """ Determine the required model permission based on view action """
@@ -123,3 +130,43 @@ class HasModelPermissionInOrg(permissions.BasePermission):
          has_perm = has_perm_in_org(user, required_perm, obj)
          print(f"[PermClass] has_object_permission result: {has_perm}") # DEBUG
          return has_perm 
+
+class CanAccessOrganizationObject(permissions.BasePermission):
+    """
+    Custom permission to only allow users to access objects belonging
+    to an organization they are a member of.
+    Assumes the object has an 'organization' attribute.
+    """
+    message = "You do not have permission to access objects in this organization."
+
+    def has_object_permission(self, request, view, obj):
+        # Check if the object has an 'organization' attribute
+        if not hasattr(obj, 'organization'):
+            # If the object doesn't have an organization, this permission doesn't apply
+            # Or you might want to deny access by default if org scoping is mandatory
+            logger.warning(f"Object {obj} lacks 'organization' attribute for permission check.")
+            return False # Deny access if object isn't org-scoped as expected
+
+        # Check if the user is a member of the object's organization
+        # We don't need a specific permission codename here, just membership.
+        # We can reuse has_perm_in_org, passing a dummy perm or checking the result differently.
+        # A simpler check might be direct membership:
+        user = request.user
+        target_org = obj.organization
+
+        if not user or not user.is_authenticated:
+            return False
+        if user.is_superuser:
+            return True # Superusers can access anything
+        
+        # Check if the user has *any* active role in the target organization
+        is_member = OrganizationMembership.objects.filter(
+            user=user, 
+            organization=target_org, 
+            is_active=True
+        ).exists()
+        
+        if not is_member:
+             logger.info(f"User {user} denied access to object {obj} (org: {target_org}) - not an active member.")
+        
+        return is_member 

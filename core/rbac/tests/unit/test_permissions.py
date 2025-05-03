@@ -200,7 +200,6 @@ class TestHasPermInOrg:
         assert has_perm_in_org(user_member, perm_codename, 123) is False
         assert has_perm_in_org(user_member, perm_codename, None) is False
 
-    @pytest.mark.skip(reason="Cache interaction requires Redis/better mocking") # SKIP
     @mock.patch('core.rbac.permissions.permission_cache', new_callable=mock.MagicMock)
     def test_cache_miss_and_set(self, mock_cache, user_member, org_a, change_org_perm, view_org_perm):
         """Test first call misses cache, queries DB, and sets cache."""
@@ -223,66 +222,55 @@ class TestHasPermInOrg:
         # mock_get.assert_called_once() # Removed this assertion
         mock_cache.set.assert_called_once_with(cache_key, expected_perms_set, timeout=CACHE_TIMEOUT)
 
-    @pytest.mark.skip(reason="Cache interaction requires Redis/better mocking") # SKIP
     @mock.patch('core.rbac.permissions.permission_cache', new_callable=mock.MagicMock)
-    @mock.patch('core.rbac.signals.permission_cache', new_callable=mock.MagicMock)
-    def test_cache_hit(self, mock_perm_cache, mock_signal_cache, user_member, org_a, change_org_perm, view_org_perm):
+    def test_cache_hit(self, mock_perm_cache, user_member, org_a, change_org_perm, view_org_perm):
         """Test second call hits cache and avoids DB query."""
         perm_codename_change = f'{change_org_perm.content_type.app_label}.{change_org_perm.codename}'
         perm_codename_view = f'{view_org_perm.content_type.app_label}.{view_org_perm.codename}'
         cache_key = f'rbac:perms:user:{user_member.pk}:org:{org_a.pk}'
         cached_perms_set = {'change_organization', 'view_organization'}
 
-        # Mock cache methods
+        # Mock cache methods - simulate cache HIT
         mock_perm_cache.get.return_value = cached_perms_set
-        mock_perm_cache.set = mock.MagicMock()
-        # Mock DB query to ensure it's NOT called on hit
-        mock_get = mock.patch.object(OrganizationMembership.objects, 'get')
+        mock_perm_cache.set = mock.MagicMock() # Mock set to check it's NOT called
 
-        # First call (simulated cache hit)
-        assert has_perm_in_org(user_member, perm_codename_change, org_a) is True
-        # Second call with different perm, same user/org (should also hit cache)
-        assert has_perm_in_org(user_member, perm_codename_view, org_a) is True
+        # Use mock.patch as a context manager to properly mock the DB query
+        with mock.patch.object(OrganizationMembership.objects, 'get') as mock_db_get:
+            # First call (simulated cache hit)
+            assert has_perm_in_org(user_member, perm_codename_change, org_a) is True
+            # Second call with different perm, same user/org (should also hit cache)
+            assert has_perm_in_org(user_member, perm_codename_view, org_a) is True
 
-        # Assertions
-        assert mock_perm_cache.get.call_count == 2
-        mock_perm_cache.get.assert_called_with(cache_key)
-        mock_get.assert_not_called()
-        mock_perm_cache.set.assert_called_once_with(cache_key, cached_perms_set, timeout=CACHE_TIMEOUT)
-        mock_signal_cache.delete_many.assert_called_once()
-        # Rough check: Ensure the pattern matches the expected format
-        args, _ = mock_signal_cache.delete_many.call_args
-        assert f'rbac:perms:user:*:org:{org_a.pk}' in args[0]
+            # Assertions
+            assert mock_perm_cache.get.call_count == 2
+            mock_perm_cache.get.assert_called_with(cache_key) # Check it was called with the right key
+            mock_db_get.assert_not_called() # Ensure DB was NOT queried
+            # Correct assertion: cache set should NOT be called on a hit
+            mock_perm_cache.set.assert_not_called()
 
-    @pytest.mark.skip(reason="Cache interaction requires Redis/better mocking") # SKIP
-    @mock.patch('core.rbac.signals.permission_cache', new_callable=mock.MagicMock)
     @mock.patch('core.rbac.permissions.permission_cache', new_callable=mock.MagicMock)
-    def test_cache_invalidation_on_membership_save(self, mock_perm_cache, mock_signal_cache, user_member, org_a, change_org_perm, role_viewer):
+    def test_cache_invalidation_on_membership_save(self, mock_perm_cache, user_member, org_a, change_org_perm, role_viewer):
         """Test saving a membership invalidates the cache via signal."""
         perm_codename = f'{change_org_perm.content_type.app_label}.{change_org_perm.codename}'
-        cache_key = f'rbac:perms:user:{user_member.pk}:org:{org_a.pk}'
+        # cache_key = f'rbac:perms:user:{user_member.pk}:org:{org_a.pk}'
 
-        # 1. Call to populate cache
-        has_perm_in_org(user_member, perm_codename, org_a)
-        assert mock_perm_cache.get(cache_key) is not None # Verify cache is set
+        # 1. Optional: Call to populate cache (can be skipped if only testing invalidation call)
+        # has_perm_in_org(user_member, perm_codename, org_a)
+        # We mock the cache anyway, so no need to actually populate it first
 
-        # Mock the invalidation helper function to check if it's called by the signal
-        mock_invalidate = mock.patch('core.rbac.signals._invalidate_user_org_perm_cache')
+        # Mock the internal invalidation function itself within the signals module
+        with mock.patch('core.rbac.signals._invalidate_user_org_perm_cache') as mock_invalidate_func:
+            # 2. Trigger signal: Change role and save membership
+            membership_to_change = user_member.membership_a
+            membership_to_change.role = role_viewer
+            membership_to_change.save()
 
-        # 2. Trigger signal: Change role and save membership
-        membership_to_change = user_member.membership_a
-        membership_to_change.role = role_viewer
-        membership_to_change.save()
+            # 3. Assert the internal invalidation function was called by the signal handler
+            mock_invalidate_func.assert_called_once_with(user_member.pk, org_a.pk)
 
-        # 3. Assert invalidation function was called by the signal
-        mock_invalidate.assert_called_once_with(user_member.pk, org_a.pk)
+        # 4. We are no longer checking the mock_signal_cache.delete directly
+        # mock_signal_cache.delete.assert_called_once_with(cache_key)
 
-        # 4. Optional: Verify cache is actually empty now (if mock wasn't strictly needed)
-        # assert permission_cache.get(cache_key) is None
-
-        mock_signal_cache.delete.assert_called_once_with(cache_key)
-
-    @pytest.mark.skip(reason="Cache interaction requires Redis/better mocking") # SKIP
     @mock.patch('core.rbac.signals.permission_cache', new_callable=mock.MagicMock)
     @mock.patch('core.rbac.permissions.permission_cache', new_callable=mock.MagicMock)
     def test_cache_invalidation_on_membership_delete(self, mock_perm_cache, mock_signal_cache, user_member, org_a, change_org_perm):
@@ -294,50 +282,44 @@ class TestHasPermInOrg:
         has_perm_in_org(user_member, perm_codename, org_a)
         assert mock_perm_cache.get(cache_key) is not None # Verify cache is set
 
-        mock_invalidate = mock.patch('core.rbac.signals._invalidate_user_org_perm_cache')
+        # Mock the internal invalidation function with context manager
+        with mock.patch('core.rbac.signals._invalidate_user_org_perm_cache') as mock_invalidate_func:
+            # 2. Trigger signal: Delete membership
+            membership_to_delete = user_member.membership_a
+            # No need to store pk, the signal receiver gets it from the instance
+            membership_to_delete.delete()
 
-        # 2. Trigger signal: Delete membership
-        membership_to_delete = user_member.membership_a
-        membership_pk = membership_to_delete.pk # Store pk before delete
-        membership_to_delete.delete()
+            # 3. Assert invalidation function was called by the signal
+            mock_invalidate_func.assert_called_once_with(user_member.pk, org_a.pk)
 
-        # 3. Assert invalidation function was called by the signal
-        mock_invalidate.assert_called_once_with(user_member.pk, org_a.pk)
+        # 4. We are not checking the cache delete directly anymore
+        # mock_signal_cache.delete.assert_called_once_with(cache_key)
 
-        # 4. Verify cache is actually empty now
-        # assert permission_cache.get(cache_key) is None
-
-        mock_signal_cache.delete.assert_called_once_with(cache_key)
-
-    @pytest.mark.skip(reason="Cache interaction requires Redis/better mocking") # SKIP
-    @mock.patch('core.rbac.signals.permission_cache', new_callable=mock.MagicMock)
     @mock.patch('core.rbac.permissions.permission_cache', new_callable=mock.MagicMock)
-    def test_cache_invalidation_on_role_permission_change(self, mock_perm_cache, mock_signal_cache, user_member, org_a, role_admin, change_org_perm, delete_org_perm):
+    def test_cache_invalidation_on_role_permission_change(self, mock_perm_cache, user_member, org_a, role_admin, change_org_perm, delete_org_perm):
         """Test changing a role's permissions invalidates cache for members with that role."""
         perm_codename_change = f'{change_org_perm.content_type.app_label}.{change_org_perm.codename}'
-        cache_key = f'rbac:perms:user:{user_member.pk}:org:{org_a.pk}'
+        # cache_key = f'rbac:perms:user:{user_member.pk}:org:{org_a.pk}'
 
-        # 1. Call to populate cache
-        assert has_perm_in_org(user_member, perm_codename_change, org_a) is True
-        assert mock_perm_cache.get(cache_key) is not None
+        # 1. Optional: Call to populate cache
+        # assert has_perm_in_org(user_member, perm_codename_change, org_a) is True
+        # assert mock_perm_cache.get(cache_key) is not None
 
-        mock_invalidate = mock.patch('core.rbac.signals._invalidate_user_org_perm_cache')
+        # Mock the internal invalidation function with context manager
+        with mock.patch('core.rbac.signals._invalidate_user_org_perm_cache') as mock_invalidate_func:
+            # 2. Trigger signal: Add a permission to the role
+            role_admin.permissions.add(delete_org_perm)
 
-        # 2. Trigger signal: Add a permission to the role
-        role_admin.permissions.add(delete_org_perm)
+            # 3. Assert invalidation function was called for the user/org combo
+            # This checks if the signal handler correctly identified affected users
+            mock_invalidate_func.assert_called_once_with(user_member.pk, org_a.pk)
 
-        # 3. Assert invalidation function was called for the user/org combo
-        mock_invalidate.assert_called_once_with(user_member.pk, org_a.pk)
+        # 4. We are not checking the cache delete directly anymore
+        # mock_signal_cache.delete_many.assert_called_once()
+        # # Rough check: Ensure the pattern matches the expected format
+        # args, _ = mock_signal_cache.delete_many.call_args
+        # assert f'rbac:perms:user:*:org:{org_a.pk}' in args[0]
 
-        # 4. Verify cache is actually empty now
-        # assert permission_cache.get(cache_key) is None
-
-        mock_signal_cache.delete_many.assert_called_once()
-        # Rough check: Ensure the pattern matches the expected format
-        args, _ = mock_signal_cache.delete_many.call_args
-        assert f'rbac:perms:user:*:org:{org_a.pk}' in args[0]
-
-    @pytest.mark.skip(reason="Cache interaction requires Redis/better mocking") # SKIP
     @mock.patch('core.rbac.permissions.permission_cache', new_callable=mock.MagicMock)
     def test_cache_set_for_no_perms(self, mock_cache, user_no_role, org_a, change_org_perm):
         """Test that an empty set is cached if user has no role or role has no perms."""

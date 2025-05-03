@@ -6,7 +6,8 @@ from django.contrib.auth.models import Group
 
 from api.v1.base_models.organization.models import OrganizationMembership
 
-permission_cache = caches['permissions']
+# Use the consistent 'rbac' cache alias
+permission_cache = caches['rbac']
 
 def _invalidate_user_org_perm_cache(user_pk, org_pk):
     """Helper function to invalidate the cache for a specific user/org."""
