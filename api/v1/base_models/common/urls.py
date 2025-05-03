@@ -1,16 +1,25 @@
 from django.urls import path, include # Ensure path and include are imported
 from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenRefreshView # Import simplejwt view
 
-# Import ViewSets from sub-apps
+# Import ViewSets/Views from sub-apps
 from .uom.views import UomTypeViewSet, UnitOfMeasureViewSet
-from .status.views import StatusViewSet # Import StatusViewSet
-from .currency.views import CurrencyViewSet # Import CurrencyViewSet
-# from .address.views import AddressViewSet # Commented out - Implement/uncomment when Address API exists
-# from .currency.views import CurrencyViewSet # Commented out - Implement/uncomment when Currency API exists
+from .status.views import StatusViewSet
+from .currency.views import CurrencyViewSet
+# Import Auth views
+from .auth.views import (
+    CustomTokenObtainPairView,
+    TOTPSetupView,
+    TOTPVerifyView,
+    TOTPDisableView,
+    PasswordChangeView
+)
+# from .address.views import AddressViewSet # Commented out
 # Import other common viewsets...
 
-app_name = 'common' # Keep the app_name consistent
+app_name = 'common'
 
+# --- Router Configuration --- 
 router = DefaultRouter()
 
 # Register UoM ViewSets
@@ -25,11 +34,21 @@ router.register(r'currencies', CurrencyViewSet, basename='currency')
 
 # Register other common ViewSets (Commented out)
 # router.register(r'addresses', AddressViewSet, basename='address')
-# router.register(r'currencies', CurrencyViewSet, basename='currency')
 
 
-# Set urlpatterns directly to the router's generated URLs
+# --- urlpatterns --- 
+# Start with router URLs
 urlpatterns = router.urls
+
+# Add specific Auth URLs with 'auth/' prefix
+urlpatterns += [
+    path('auth/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('auth/2fa/totp/setup/', TOTPSetupView.as_view(), name='2fa-totp-setup'),
+    path('auth/2fa/totp/verify/', TOTPVerifyView.as_view(), name='2fa-totp-verify'),
+    path('auth/2fa/totp/disable/', TOTPDisableView.as_view(), name='2fa-totp-disable'),
+    path('auth/password/change/', PasswordChangeView.as_view(), name='password-change'),
+]
 
 # Ensure no leftover includes for deleted urls.py files
 

@@ -7,12 +7,15 @@ from api.v1.base_models.user.tests.factories import UserFactory
 
 User = get_user_model()
 
+# Define the correct full namespace
+AUTH_NAMESPACE = "v1:base_models:common"
+
 @pytest.mark.django_db
 class TestPasswordChangeView:
     def test_password_change_unauthenticated(self):
         """Test that unauthenticated users cannot change password."""
         client = APIClient()
-        url = reverse('v1:base_models:auth:password-change')
+        url = reverse(f'{AUTH_NAMESPACE}:password-change')
         response = client.post(url, {
             'old_password': 'oldpass123',
             'new_password': 'newpass123'
@@ -24,7 +27,7 @@ class TestPasswordChangeView:
         client = APIClient()
         user = UserFactory()
         client.force_authenticate(user=user)
-        url = reverse('v1:base_models:auth:password-change')
+        url = reverse(f'{AUTH_NAMESPACE}:password-change')
         
         # Test missing old_password
         response = client.post(url, {'new_password': 'newpass123'})
@@ -41,7 +44,7 @@ class TestPasswordChangeView:
         client = APIClient()
         user = UserFactory()
         client.force_authenticate(user=user)
-        url = reverse('v1:base_models:auth:password-change')
+        url = reverse(f'{AUTH_NAMESPACE}:password-change')
         
         response = client.post(url, {
             'old_password': 'wrongpass',
@@ -58,7 +61,7 @@ class TestPasswordChangeView:
         user.set_password(old_password)
         user.save()
         client.force_authenticate(user=user)
-        url = reverse('v1:base_models:auth:password-change')
+        url = reverse(f'{AUTH_NAMESPACE}:password-change')
         
         new_password = 'newpass123'
         response = client.post(url, {

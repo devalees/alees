@@ -2,8 +2,11 @@ import pytest
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.urls import reverse
 
 User = get_user_model()
+
+AUTH_NAMESPACE = "v1:base_models:common"
 
 @pytest.fixture
 def api_client():
@@ -19,10 +22,19 @@ def test_user():
 
 @pytest.mark.django_db
 class TestTokenEndpoints:
+
+    @property
+    def token_obtain_url(self):
+        return reverse(f'{AUTH_NAMESPACE}:token_obtain_pair')
+
+    @property
+    def token_refresh_url(self):
+        return reverse(f'{AUTH_NAMESPACE}:token_refresh')
+
     def test_obtain_token_success(self, api_client, test_user):
         """Test successful token obtain endpoint"""
         response = api_client.post(
-            '/api/v1/auth/token/',
+            self.token_obtain_url,
             {'username': 'testuser', 'password': 'testpass123'},
             format='json'
         )
@@ -33,7 +45,7 @@ class TestTokenEndpoints:
     def test_obtain_token_invalid_credentials(self, api_client):
         """Test token obtain with invalid credentials"""
         response = api_client.post(
-            '/api/v1/auth/token/',
+            self.token_obtain_url,
             {'username': 'wronguser', 'password': 'wrongpass'},
             format='json'
         )
@@ -42,7 +54,7 @@ class TestTokenEndpoints:
     def test_obtain_token_missing_credentials(self, api_client):
         """Test token obtain with missing credentials"""
         response = api_client.post(
-            '/api/v1/auth/token/',
+            self.token_obtain_url,
             {},
             format='json'
         )
@@ -50,10 +62,9 @@ class TestTokenEndpoints:
 
     def test_refresh_token_success(self, api_client, test_user):
         """Test successful token refresh"""
-        # First get a refresh token
         refresh = RefreshToken.for_user(test_user)
         response = api_client.post(
-            '/api/v1/auth/token/refresh/',
+            self.token_refresh_url,
             {'refresh': str(refresh)},
             format='json'
         )
@@ -63,7 +74,7 @@ class TestTokenEndpoints:
     def test_refresh_token_invalid(self, api_client):
         """Test token refresh with invalid token"""
         response = api_client.post(
-            '/api/v1/auth/token/refresh/',
+            self.token_refresh_url,
             {'refresh': 'invalid_token'},
             format='json'
         )
@@ -72,7 +83,7 @@ class TestTokenEndpoints:
     def test_refresh_token_missing(self, api_client):
         """Test token refresh with missing token"""
         response = api_client.post(
-            '/api/v1/auth/token/refresh/',
+            self.token_refresh_url,
             {},
             format='json'
         )
