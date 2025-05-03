@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 # Import ViewSets from sub-apps
 from .uom.views import UomTypeViewSet, UnitOfMeasureViewSet
 from .status.views import StatusViewSet # Import StatusViewSet
+from .currency.views import CurrencyViewSet # Import CurrencyViewSet
 # from .address.views import AddressViewSet # Commented out - Implement/uncomment when Address API exists
 # from .currency.views import CurrencyViewSet # Commented out - Implement/uncomment when Currency API exists
 # Import other common viewsets...
@@ -18,6 +19,9 @@ router.register(r'uoms', UnitOfMeasureViewSet, basename='unitofmeasure')
 
 # Register Status ViewSet
 router.register(r'statuses', StatusViewSet, basename='status')
+
+# Register Currency ViewSet
+router.register(r'currencies', CurrencyViewSet, basename='currency')
 
 # Register other common ViewSets (Commented out)
 # router.register(r'addresses', AddressViewSet, basename='address')
