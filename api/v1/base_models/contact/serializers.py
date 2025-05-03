@@ -4,6 +4,7 @@ from taggit.serializers import TagListSerializerField, TaggitSerializer
 from api.v1.base_models.common.address.serializers import AddressSerializer
 from api.v1.base_models.common.address.models import Address
 from api.v1.base_models.organization.models import Organization
+from api.v1.base_models.organization.serializers import OrganizationSimpleSerializer
 
 from api.v1.base_models.contact.models import (
     Contact, ContactEmailAddress, ContactPhoneNumber, ContactAddress
@@ -52,11 +53,15 @@ class ContactEmailAddressSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        """Create a new email address."""
-        contact = validated_data.pop('contact', None) or self.context.get('contact')
+        """Create a new email address, ensuring contact is set from context."""
+        contact = self.context.get('contact')
         if not contact:
-            raise serializers.ValidationError("Contact is required")
-        return ContactEmailAddress.objects.create(contact=contact, **validated_data)
+            logger.error("ContactEmailAddressSerializer create failed: Contact context not provided.")
+            raise serializers.ValidationError("Contact context is required")
+        validated_data.pop('contact', None) # Ensure not duplicated
+        instance = ContactEmailAddress.objects.create(contact=contact, **validated_data)
+        logger.info(f"Created ContactEmailAddress {instance.id} for Contact {contact.id}")
+        return instance
 
 
 class ContactPhoneNumberSerializer(serializers.ModelSerializer):
@@ -99,11 +104,15 @@ class ContactPhoneNumberSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        """Create a new phone number."""
-        contact = validated_data.pop('contact', None) or self.context.get('contact')
+        """Create a new phone number, ensuring contact is set from context."""
+        contact = self.context.get('contact')
         if not contact:
-            raise serializers.ValidationError("Contact is required")
-        return ContactPhoneNumber.objects.create(contact=contact, **validated_data)
+            logger.error("ContactPhoneNumberSerializer create failed: Contact context not provided.")
+            raise serializers.ValidationError("Contact context is required")
+        validated_data.pop('contact', None) # Ensure not duplicated
+        instance = ContactPhoneNumber.objects.create(contact=contact, **validated_data)
+        logger.info(f"Created ContactPhoneNumber {instance.id} for Contact {contact.id}")
+        return instance
 
 
 class ContactAddressSerializer(serializers.ModelSerializer):
@@ -178,32 +187,46 @@ class ContactAddressSerializer(serializers.ModelSerializer):
         return ret
 
     def create(self, validated_data):
-        """Create a new contact address."""
+        """Create a new contact address, ensuring contact is set from context."""
         logger.info(f"Creating ContactAddress with validated data: {validated_data}")
-        
+        contact = self.context.get('contact')
+        if not contact:
+            logger.error("ContactAddressSerializer create failed: Contact context not provided.")
+            raise serializers.ValidationError("Contact context is required")
+
+        address_instance = None
         try:
             address_data = validated_data.pop('address', None)
-            if isinstance(address_data, dict):
+            if isinstance(address_data, Address):
+                 logger.info(f"Using existing address instance: {address_data.id}")
+                 address_instance = address_data
+            elif isinstance(address_data, dict):
                 logger.info(f"Creating new address from data: {address_data}")
                 address_serializer = AddressSerializer(data=address_data)
                 address_serializer.is_valid(raise_exception=True)
-                address = address_serializer.save()
-                validated_data['address'] = address
-            elif address_data:
-                logger.info(f"Using existing address: {address_data}")
-                validated_data['address'] = address_data
-            else:
-                logger.error("No valid address data found in validated_data")
-                raise serializers.ValidationError({
-                    'address_id': 'Either address or address_id must be provided'
-                })
+                address_instance = address_serializer.save()
+                logger.info(f"Created new address instance: {address_instance.id}")
+
+            if not address_instance:
+                 logger.error("No valid address instance or data found in validated_data")
+                 raise serializers.ValidationError({'address': 'Valid address object or new address data must be provided.'})
+
+            validated_data.pop('contact', None)
+            validated_data.pop('address', None)
             
-            result = super().create(validated_data)
-            logger.info(f"Successfully created ContactAddress with ID: {result.id}")
-            return result
-        except Exception as e:
-            logger.error(f"Error creating ContactAddress: {str(e)}")
+            instance = ContactAddress.objects.create(
+                contact=contact, 
+                address=address_instance, 
+                **validated_data
+            )
+            logger.info(f"Created ContactAddress {instance.id} for Contact {contact.id} with Address {address_instance.id}")
+            return instance
+        except serializers.ValidationError as e:
+            logger.error(f"Validation error creating ContactAddress: {e.detail}")
             raise
+        except Exception as e:
+            logger.error(f"Error creating ContactAddress: {e}", exc_info=True)
+            raise serializers.ValidationError(f"An unexpected error occurred creating the contact address: {e}")
 
     def update(self, instance, validated_data):
         """Update an existing contact address."""
@@ -221,219 +244,168 @@ class ContactAddressSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 
+# Restore TaggitSerializer
 class ContactSerializer(TaggitSerializer, serializers.ModelSerializer):
     """Serializer for Contact model."""
     id = serializers.IntegerField(required=False)
     email_addresses = ContactEmailAddressSerializer(many=True, required=False)
     phone_numbers = ContactPhoneNumberSerializer(many=True, required=False)
     addresses = ContactAddressSerializer(many=True, required=False)
-    organization_name = serializers.CharField(required=False)
-    linked_organization = serializers.PrimaryKeyRelatedField(
-        queryset=Organization.objects.all(),
-        allow_null=True,
-        required=False
+    organization_name = serializers.CharField(required=False, allow_blank=True)
+    
+    organization = OrganizationSimpleSerializer(read_only=True)
+    organization_id = serializers.PrimaryKeyRelatedField(
+        queryset=Organization.objects.all(), 
+        source='organization', 
+        required=True, 
+        allow_null=False
     )
-    linked_organization_name = serializers.CharField(
-        source='linked_organization.name',
-        read_only=True,
-        allow_null=True
-    )
-    tags = TagListSerializerField(required=False)
+
+    tags = TagListSerializerField(required=False) # Restore tags field
 
     def validate(self, attrs):
         """Validate the contact data."""
         logger.info("Starting contact validation with data: %s", attrs)
+        emails_data = attrs.get('email_addresses', [])
+        phones_data = attrs.get('phone_numbers', [])
+        addresses_data = attrs.get('addresses', [])
 
-        # Check for organization name and ID conflict
-        org_name = attrs.get('organization_name')
-        linked_org = attrs.get('linked_organization')
-        if org_name and linked_org:
-            logger.error("Cannot provide both organization name and organization ID")
-            raise serializers.ValidationError({'organization_name': 'Cannot provide both organization name and organization ID'})
+        self._validate_primary_flags(emails_data, 'email_addresses')
+        self._validate_primary_flags(phones_data, 'phone_numbers')
+        self._validate_primary_flags(addresses_data, 'addresses')
 
-        # Validate nested objects
-        if 'email_addresses' in attrs:
-            logger.info("Validating %d email addresses", len(attrs['email_addresses']))
-            for email in attrs['email_addresses']:
-                if not email.get('email'):
-                    raise serializers.ValidationError({
-                        'email_addresses': 'Email is required for each email address.'
-                    })
-
-        if 'phone_numbers' in attrs:
-            logger.info("Validating %d phone numbers", len(attrs['phone_numbers']))
-            for phone in attrs['phone_numbers']:
-                if not phone.get('phone_number'):
-                    raise serializers.ValidationError({
-                        'phone_numbers': 'Phone number is required for each phone number.'
-                    })
-
-        if 'addresses' in attrs:
-            logger.info("Validating %d addresses", len(attrs['addresses']))
-            for address in attrs['addresses']:
-                if not address.get('address') and not address.get('address_id'):
-                    raise serializers.ValidationError({
-                        'addresses': 'Either address or address_id must be provided for each address.'
-                    })
-
-        # Validate primary flags
-        email_addresses = attrs.get('email_addresses', [])
-        phone_numbers = attrs.get('phone_numbers', [])
-        addresses = attrs.get('addresses', [])
-
-        logger.info("Validating primary flags for %d email addresses, %d phone numbers, and %d addresses",
-                    len(email_addresses), len(phone_numbers), len(addresses))
-
-        self._validate_primary_flags(email_addresses, 'email_addresses')
-        self._validate_primary_flags(phone_numbers, 'phone_numbers')
-        self._validate_primary_flags(addresses, 'addresses')
-
-        # Validate required fields for new contacts
-        if not self.instance:
-            required_fields = ['first_name', 'last_name']
-            missing_fields = [field for field in required_fields if not attrs.get(field)]
-            if missing_fields:
-                logger.error("Missing required fields: %s", missing_fields)
+        organization_name = attrs.get('organization_name')
+        organization_instance = attrs.get('organization') 
+        organization_id = organization_instance.pk if organization_instance else None
+        
+        if organization_name and not self.instance and organization_id: 
+            if Contact.objects.filter(organization_id=organization_id, organization_name__iexact=organization_name).exists():
                 raise serializers.ValidationError({
-                    field: 'This field is required.'
-                    for field in missing_fields
+                    'organization_name': 'A contact with this organization name already exists within the organization.'
                 })
-
-        logger.info("Contact validation completed successfully")
+        
+        logger.info("Contact validation completed successfully.")
         return attrs
 
     def create(self, validated_data):
-        """Create a new contact with nested objects."""
-        logger.info(f"Creating new contact with data: {validated_data}")
-        
-        email_addresses = validated_data.pop('email_addresses', [])
-        phone_numbers = validated_data.pop('phone_numbers', [])
-        addresses = validated_data.pop('addresses', [])
-        tags = validated_data.pop('tags', [])
+        """Create a new contact and handle nested objects."""
+        emails_data = validated_data.pop('email_addresses', [])
+        phones_data = validated_data.pop('phone_numbers', [])
+        addresses_data = validated_data.pop('addresses', [])
+        tags_data = validated_data.pop('tags', [])
 
-        # Create the contact first
         contact = Contact.objects.create(**validated_data)
-        logger.info(f"Created contact with ID: {contact.id}")
         
-        # Set tags if provided
-        if tags:
-            logger.info(f"Setting tags: {tags}")
-            contact.tags.set(tags)
+        if tags_data:
+            contact.tags.set(tags_data)
 
-        # Create nested objects with proper context
-        for email_data in email_addresses:
-            logger.info(f"Creating email address: {email_data}")
-            serializer = ContactEmailAddressSerializer(data=email_data, context={'contact': contact})
-            serializer.is_valid(raise_exception=True)
-            serializer.save(contact=contact)
-
-        for phone_data in phone_numbers:
-            logger.info(f"Creating phone number: {phone_data}")
-            serializer = ContactPhoneNumberSerializer(data=phone_data, context={'contact': contact})
-            serializer.is_valid(raise_exception=True)
-            serializer.save(contact=contact)
-
-        for address_data in addresses:
-            logger.info(f"Creating address: {address_data}")
-            serializer = ContactAddressSerializer(data=address_data, context={'contact': contact})
-            serializer.is_valid(raise_exception=True)
-            serializer.save(contact=contact)
+        self._update_nested_objects(contact, 'email_addresses', emails_data, ContactEmailAddressSerializer)
+        self._update_nested_objects(contact, 'phone_numbers', phones_data, ContactPhoneNumberSerializer)
+        self._update_nested_objects(contact, 'addresses', addresses_data, ContactAddressSerializer)
 
         return contact
 
     def update(self, instance, validated_data):
-        """Update a contact and its nested objects."""
-        logger.info(f"Updating contact {instance.id} with data: {validated_data}")
+        """Update a contact instance and handle nested objects."""
+        emails_data = validated_data.pop('email_addresses', None)
+        phones_data = validated_data.pop('phone_numbers', None)
+        addresses_data = validated_data.pop('addresses', None)
+        tags_data = validated_data.pop('tags', None)
+
+        instance = super().update(instance, validated_data)
+
+        if tags_data is not None: 
+            instance.tags.set(tags_data)
+
+        if emails_data: 
+            self._update_nested_objects(instance, 'email_addresses', emails_data, ContactEmailAddressSerializer)
         
-        email_addresses = validated_data.pop('email_addresses', None)
-        phone_numbers = validated_data.pop('phone_numbers', None)
-        addresses = validated_data.pop('addresses', None)
-        tags = validated_data.pop('tags', None)
+        if phones_data:
+            self._update_nested_objects(instance, 'phone_numbers', phones_data, ContactPhoneNumberSerializer)
 
-        # Update base fields
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        logger.info(f"Updated contact base fields for ID: {instance.id}")
-
-        # Update tags if provided
-        if tags is not None:
-            logger.info(f"Updating tags to: {tags}")
-            instance.tags.set(tags)
-
-        # Update nested objects if provided
-        if email_addresses is not None:
-            logger.info(f"Updating {len(email_addresses)} email addresses")
-            self._update_nested_objects(
-                instance, 'email_addresses', email_addresses,
-                ContactEmailAddressSerializer
-            )
-
-        if phone_numbers is not None:
-            logger.info(f"Updating {len(phone_numbers)} phone numbers")
-            self._update_nested_objects(
-                instance, 'phone_numbers', phone_numbers,
-                ContactPhoneNumberSerializer
-            )
-
-        if addresses is not None:
-            logger.info(f"Updating {len(addresses)} addresses")
-            self._update_nested_objects(
-                instance, 'addresses', addresses,
-                ContactAddressSerializer
-            )
+        if addresses_data:
+            self._update_nested_objects(instance, 'addresses', addresses_data, ContactAddressSerializer)
 
         return instance
 
+    # --- HELPER METHOD FOR NESTED WRITES ---
     def _update_nested_objects(self, instance, field_name, objects_data, serializer_class):
-        """Helper method to update nested objects."""
-        # Get existing objects
-        existing_objects = {obj.id: obj for obj in getattr(instance, field_name).all()}
-        
-        # Update or create objects
-        for obj_data in objects_data:
-            obj_id = obj_data.get('id')
-            if obj_id and obj_id in existing_objects:
-                # Update existing object
-                obj = existing_objects.pop(obj_id)
-                serializer = serializer_class(
-                    obj, data=obj_data,
-                    context={'contact': instance}
-                )
-                serializer.is_valid(raise_exception=True)
-                serializer.save()
+        """
+        Handles create/update/delete for nested objects.
+        Assumes the parent instance (`instance`) is already saved.
+        """
+        logger.info(f"[_update_nested] START: Contact {instance.id}, Field: {field_name}, Data Count: {len(objects_data)}")
+        manager = getattr(instance, field_name) # e.g., instance.email_addresses
+        existing_ids = set(manager.values_list('id', flat=True))
+        updated_ids = set()
+
+        for item_data in objects_data:
+            item_id = item_data.get('id')
+            logger.info(f"[_update_nested] Processing item: {item_data}")
+            if item_id:
+                logger.info(f"[_update_nested] Updating {field_name} item ID {item_id}")
+                item_instance = manager.get(id=item_id)
+                serializer = serializer_class(item_instance, data=item_data, partial=True, context={'contact': instance})
+                if serializer.is_valid(raise_exception=True):
+                    serializer.save()
+                    updated_ids.add(item_id)
+                    logger.info(f"[_update_nested] Update successful for ID {item_id}")
+                else:
+                    logger.error(f"[_update_nested] Validation failed for new {field_name} item: {serializer.errors}")
             else:
-                # Create new object
-                serializer = serializer_class(
-                    data=obj_data,
-                    context={'contact': instance}
-                )
-                serializer.is_valid(raise_exception=True)
-                serializer.save(contact=instance)
-        
-        # Delete remaining objects
-        for obj in existing_objects.values():
-            obj.delete()
+                logger.info(f"[_update_nested] Creating new {field_name} item")
+                serializer = serializer_class(data=item_data, context={'contact': instance})
+                if serializer.is_valid(raise_exception=True):
+                    try:
+                        # Rely *only* on context for create, do not pass contact kwarg
+                        nested_instance = serializer.save()
+                        if hasattr(nested_instance, 'id'):
+                            updated_ids.add(nested_instance.id)
+                            logger.info(f"[_update_nested] Creation successful, new ID: {nested_instance.id}")
+                        else:
+                            logger.error(f"[_update_nested] Failed to get ID for newly created {field_name} item.")
+                    except Exception as e:
+                        logger.error(f"[_update_nested] Error saving nested {field_name}: {e}", exc_info=True)
+                        raise
+                else:
+                    logger.error(f"[_update_nested] Validation failed for new {field_name} item: {serializer.errors}")
+
+        # Delete items not included in the update (optional, depends on desired PATCH behavior)
+        ids_to_delete = existing_ids - updated_ids
+        if ids_to_delete:
+            logger.info(f"[_update_nested] Deleting {field_name} items: {ids_to_delete}")
+            manager.filter(id__in=ids_to_delete).delete()
+        logger.info(f"[_update_nested] END: Contact {instance.id}, Field: {field_name}")
+
+    # --- END HELPER ---
 
     def to_representation(self, instance):
-        """Convert instance to representation."""
-        data = super().to_representation(instance)
-        # Sort tags to ensure consistent order
-        if 'tags' in data:
-            data['tags'] = sorted(data['tags'])
-        return data
+        """Ensure nested fields are represented correctly."""
+        representation = super().to_representation(instance)
+        # Ensure nested serializers are used for output
+        representation['email_addresses'] = ContactEmailAddressSerializer(instance.email_addresses.all(), many=True).data
+        representation['phone_numbers'] = ContactPhoneNumberSerializer(instance.phone_numbers.all(), many=True).data
+        representation['addresses'] = ContactAddressSerializer(instance.addresses.all(), many=True).data
+        # TaggitSerializer handles tags automatically
+        return representation
 
     class Meta:
         model = Contact
         fields = [
             'id', 'first_name', 'last_name', 'title', 'organization_name',
-            'linked_organization', 'linked_organization_name',
-            'contact_type', 'status', 'source', 'notes', 'tags', 'custom_fields',
+            'organization',
+            'organization_id',
+            'contact_type', 'status', 'source', 'notes', 'tags', 
+            'custom_fields',
             'email_addresses', 'phone_numbers', 'addresses',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'organization', 'created_at', 'updated_at'] 
 
     def _validate_primary_flags(self, items, field_name):
-        # Implementation of _validate_primary_flags method
-        pass
+        """Helper to ensure only one item is marked as primary."""
+        primary_count = sum(1 for item in items if item.get('is_primary'))
+        if primary_count > 1:
+            raise serializers.ValidationError({
+                field_name: f"Only one {field_name.replace('_', ' ')} can be marked as primary."
+            })

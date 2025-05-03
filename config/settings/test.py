@@ -4,18 +4,15 @@ from .base import *  # Inherit base settings first
 import os
 from pathlib import Path
 
-# --- Explicitly Define DATABASES for Test ---
-# Uses TEST_DB_* environment variables set by docker-compose
-# This definition REPLACES the one from base.py entirely for this scope
+# --- Explicitly Define DATABASES for Test using TEST_DB_* vars ---
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': env('TEST_DB_NAME'),
-        'USER': env('TEST_DB_USER'),
-        'PASSWORD': env('TEST_DB_PASSWORD'),
-        'HOST': env('TEST_DB_HOST'), # Should be 'postgres' service name
-        'PORT': env('TEST_DB_PORT'), # Should be '5432'
-        'ATOMIC_REQUESTS': True,
+        'ENGINE': env('TEST_DB_ENGINE', default='django.db.backends.postgresql'),
+        'NAME': env('TEST_DB_NAME'), # Read from env var set in docker-compose
+        'USER': env('TEST_DB_USER'), # Read from env var set in docker-compose
+        'PASSWORD': env('TEST_DB_PASSWORD'), # Read from env var set in docker-compose
+        'HOST': env('TEST_DB_HOST'), # Read from env var set in docker-compose
+        'PORT': env('TEST_DB_PORT'), # Read from env var set in docker-compose
     }
 }
 # --- End Database Override ---
@@ -58,14 +55,51 @@ CELERY_RESULT_BACKEND = env('TEST_CELERY_RESULT_BACKEND', default='cache+memory:
 EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
 
 # Passwords (Use faster hasher, disable validators)
-PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.MD5PasswordHasher",
+]
 AUTH_PASSWORD_VALIDATORS = []
 
-# Logging (Simplify for tests)
+# Logging (Configure for test output)
 LOGGING = {
-    'version': 1, 'disable_existing_loggers': True,
-    'handlers': { 'null': {'class': 'logging.NullHandler'} },
-    'loggers': {}, 'root': { 'handlers': ['null'], 'level': env('TEST_LOG_LEVEL', default='WARNING')},
+    'version': 1,
+    'disable_existing_loggers': False, # Keep existing loggers
+    'formatters': { # Define a simple formatter
+        'simple': {
+            'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        },
+    },
+    'handlers': {
+        'console': { # Define a console handler
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'null': { # Keep null handler for other logs if needed
+            'class': 'logging.NullHandler',
+        },
+    },
+    'loggers': {
+        'core.views': { # Configure our view logger
+            'handlers': ['console'],
+            'level': 'INFO', # Output INFO and above
+            'propagate': False, # Don't propagate to root
+        },
+        'core.rbac.permissions': { # Configure our permission logger
+            'handlers': ['console'],
+            'level': 'INFO', # Output INFO and above
+            'propagate': False, # Don't propagate to root
+        },
+        # Optional: Configure other loggers if needed, e.g., Django general logs
+        # 'django': {
+        #     'handlers': ['console'],
+        #     'level': 'WARNING', # Only show warnings/errors from Django itself
+        #     'propagate': False,
+        # },
+    },
+    'root': { # Configure the root logger
+        'handlers': ['null'], # Send unhandled logs to null
+        'level': 'WARNING', # Default level for others
+    },
 }
 
 # Migrations (Disable for speed - Usually OK, re-enable if needed)

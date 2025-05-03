@@ -42,18 +42,32 @@ def currency(user):
         )
 
 @pytest.fixture
-def contact(user):
+def organization_basic(user, org_type):
+    """Fixture for a basic Organization without complex dependencies."""
     with impersonate(user):
-        contact = Contact.objects.create(
-            first_name="John",
-            last_name="Doe"
+        return Organization.objects.create(
+            name="Basic Organization",
+            code="BASIC",
+            organization_type=org_type,
+            status="active"
+            # No primary_contact, address, currency, parent initially
         )
+
+@pytest.fixture
+def contact(user, organization_basic):
+    """Fixture to create a Contact associated with an organization."""
+    contact = Contact.objects.create(
+        first_name="John",
+        last_name="Doe",
+        organization=organization_basic
+    )
+    with impersonate(user):
         ContactEmailAddress.objects.create(
             contact=contact,
             email="john@example.com",
             is_primary=True
         )
-        return contact
+    return contact
 
 @pytest.fixture
 def address(user):
@@ -75,20 +89,20 @@ def parent_org(user, org_type):
         )
 
 @pytest.fixture
-def organization(user, org_type, parent_org, contact, address, currency):
+def organization(organization_basic, parent_org, contact, address, currency, user):
+    """Fixture for a fully populated Organization, using basic org."""
+    # Update the basic org instance with more details
+    organization_basic.parent = parent_org
+    organization_basic.primary_contact = contact
+    organization_basic.primary_address = address
+    organization_basic.currency = currency
+    organization_basic.timezone = "UTC"
+    organization_basic.language = "en"
+    # Set updated_by if using AuditableModel logic
     with impersonate(user):
-        return Organization.objects.create(
-            name="Test Organization",
-            code="TEST",
-            organization_type=org_type,
-            parent=parent_org,
-            status="active",
-            primary_contact=contact,
-            primary_address=address,
-            currency=currency,
-            timezone="UTC",
-            language="en"
-        )
+        organization_basic.save()
+    organization_basic.refresh_from_db()
+    return organization_basic
 
 @pytest.fixture
 def role(user):
@@ -141,8 +155,8 @@ class TestOrganizationType:
 class TestOrganization:
     def test_organization_creation(self, organization, org_type, parent_org, contact, address, currency, user):
         """Test that an Organization can be created with all fields."""
-        assert organization.name == "Test Organization"
-        assert organization.code == "TEST"
+        assert organization.name == "Basic Organization"
+        assert organization.code == "BASIC"
         assert organization.organization_type == org_type
         assert organization.parent == parent_org
         assert organization.status == "active"
@@ -156,17 +170,17 @@ class TestOrganization:
         assert organization.created_at is not None
         assert organization.updated_at is not None
 
-    def test_organization_str(self, organization):
+    def test_organization_str(self, organization_basic):
         """Test the string representation of an Organization."""
-        assert str(organization) == "Test Organization"
+        assert str(organization_basic) == "Basic Organization"
 
-    def test_organization_unique_code(self, user, org_type, organization):
+    def test_organization_unique_code(self, user, org_type, organization_basic):
         """Test that Organization codes must be unique."""
         with pytest.raises(Exception):
             with impersonate(user):
                 Organization.objects.create(
                     name="Another Organization",
-                    code="TEST",  # Same code as existing org
+                    code="BASIC",
                     organization_type=org_type,
                     status="active"
                 )
@@ -176,61 +190,62 @@ class TestOrganization:
         with pytest.raises(Exception):
             with impersonate(user):
                 Organization.objects.create(
-                    name="Test Org",  # Missing required fields
+                    name="Test Org",
                 )
 
     def test_organization_hierarchy(self, organization, parent_org):
         """Test MPTT hierarchy functionality."""
         assert organization.get_ancestors().count() == 1
         assert organization.get_ancestors().first() == parent_org
+        parent_org.refresh_from_db()
         assert parent_org.get_descendants().count() == 1
         assert parent_org.get_descendants().first() == organization
 
-    def test_organization_tags(self, organization):
+    def test_organization_tags(self, organization_basic):
         """Test tag functionality."""
-        organization.tags.add("test", "organization")
-        assert organization.tags.count() == 2
-        assert organization.tags.filter(name="test").exists()
-        assert organization.tags.filter(name="organization").exists()
+        organization_basic.tags.add("test", "organization")
+        assert organization_basic.tags.count() == 2
+        assert organization_basic.tags.filter(name="test").exists()
+        assert organization_basic.tags.filter(name="organization").exists()
 
-    def test_organization_custom_fields(self, organization):
+    def test_organization_custom_fields(self, organization_basic):
         """Test custom fields functionality."""
-        organization.custom_fields = {"key": "value"}
-        organization.save()
-        organization.refresh_from_db()
-        assert organization.custom_fields == {"key": "value"}
+        organization_basic.custom_fields = {"key": "value"}
+        organization_basic.save()
+        organization_basic.refresh_from_db()
+        assert organization_basic.custom_fields == {"key": "value"}
 
-    def test_organization_metadata(self, organization):
+    def test_organization_metadata(self, organization_basic):
         """Test metadata functionality."""
-        organization.metadata = {"key": "value"}
-        organization.save()
-        organization.refresh_from_db()
-        assert organization.metadata == {"key": "value"}
+        organization_basic.metadata = {"key": "value"}
+        organization_basic.save()
+        organization_basic.refresh_from_db()
+        assert organization_basic.metadata == {"key": "value"}
 
 
 @pytest.mark.django_db
 class TestOrganizationMembership:
     """Test cases for the OrganizationMembership model."""
-    def test_membership_creation(self, user, organization, role):
+    def test_membership_creation(self, user, organization_basic, role):
         """Test that an OrganizationMembership can be created with required fields."""
         with impersonate(user):
             membership = OrganizationMembership.objects.create(
                 user=user,
-                organization=organization,
+                organization=organization_basic,
                 role=role
             )
             assert membership.user == user
-            assert membership.organization == organization
+            assert membership.organization == organization_basic
             assert membership.role == role
             assert membership.is_active is True
 
-    def test_unique_together_constraint(self, user, organization, role):
+    def test_unique_together_constraint(self, user, organization_basic, role):
         """Test that a user can only have one membership per organization."""
         with impersonate(user):
             # Create first membership
             membership = OrganizationMembership(
                 user=user,
-                organization=organization,
+                organization=organization_basic,
                 role=role
             )
             membership.full_clean()
@@ -239,51 +254,51 @@ class TestOrganizationMembership:
             # Attempt to create duplicate membership
             duplicate = OrganizationMembership(
                 user=user,
-                organization=organization,
+                organization=organization_basic,
                 role=role
             )
             with pytest.raises(ValidationError):
                 duplicate.full_clean()
 
-    def test_default_values(self, user, organization, role):
+    def test_default_values(self, user, organization_basic, role):
         """Test default values are set correctly."""
         with impersonate(user):
             membership = OrganizationMembership.objects.create(
                 user=user,
-                organization=organization,
+                organization=organization_basic,
                 role=role
             )
             assert membership.is_active is True
 
-    def test_foreign_key_constraints(self, user, organization, role):
+    def test_foreign_key_constraints(self, user, organization_basic, role):
         """Test that foreign key constraints work correctly."""
         with impersonate(user):
             membership = OrganizationMembership.objects.create(
                 user=user,
-                organization=organization,
+                organization=organization_basic,
                 role=role
             )
             assert membership.user.id == user.id
-            assert membership.organization.id == organization.id
+            assert membership.organization.id == organization_basic.id
             assert membership.role.id == role.id
 
-    def test_string_representation(self, user, organization, role):
+    def test_string_representation(self, user, organization_basic, role):
         """Test the string representation of an OrganizationMembership."""
         with impersonate(user):
             membership = OrganizationMembership.objects.create(
                 user=user,
-                organization=organization,
+                organization=organization_basic,
                 role=role
             )
-            expected = f"{user.username} in {organization.name} as {role.name}"
+            expected = f"{user.username} in {organization_basic.name} as {role.name}"
             assert str(membership) == expected
 
-    def test_inherited_fields(self, user, organization, role):
+    def test_inherited_fields(self, user, organization_basic, role):
         """Test that inherited fields from Timestamped and Auditable exist."""
         with impersonate(user):
             membership = OrganizationMembership.objects.create(
                 user=user,
-                organization=organization,
+                organization=organization_basic,
                 role=role
             )
             assert membership.created_at is not None

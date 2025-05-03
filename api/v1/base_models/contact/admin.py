@@ -31,26 +31,43 @@ class ContactAddressInline(admin.TabularInline):
 @admin.register(Contact)
 class ContactAdmin(admin.ModelAdmin):
     """Admin configuration for Contact model."""
-    list_display = (
-        'first_name', 'last_name', 'title', 'organization_name',
-        'linked_organization', 'contact_type', 'status', 'source'
-    )
-    list_filter = ('contact_type', 'status', 'source')
-    search_fields = ('first_name', 'last_name', 'organization_name')
     inlines = [
         ContactEmailAddressInline,
         ContactPhoneNumberInline,
         ContactAddressInline
     ]
+    list_display = (
+        'first_name', 'last_name', 'title', 'organization_name', 'organization',
+        'contact_type', 'status', 'source', 'created_at'
+    )
+    list_filter = ('contact_type', 'status', 'source', 'created_at')
+    search_fields = (
+        'first_name', 'last_name', 'organization_name', 'email_addresses__email',
+        'phone_numbers__phone_number', 'organization__name'
+    )
+    readonly_fields = ['created_at', 'updated_at', 'created_by', 'updated_by']
     fieldsets = (
         (None, {
             'fields': (
-                'first_name', 'last_name', 'title', 'organization_name',
-                'linked_organization', 'contact_type', 'status', 'source'
+                'first_name', 'last_name', 'title', 'organization_name', 'organization'
             )
         }),
-        (_('Additional Information'), {
-            'fields': ('notes', 'tags', 'custom_fields'),
+        (_('Details'), {
+            'fields': ('contact_type', 'status', 'source', 'notes', 'tags'),
             'classes': ('collapse',)
-        })
+        }),
+        ('Custom Fields', {
+            'fields': ('custom_fields',),
+            'classes': ('collapse',)
+        }),
+        ('Audit Information', {
+            'fields': ('created_at', 'updated_at', 'created_by', 'updated_by'),
+            'classes': ('collapse',)
+        }),
     )
+
+    def save_model(self, request, obj, form, change):
+        if not obj.pk:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)

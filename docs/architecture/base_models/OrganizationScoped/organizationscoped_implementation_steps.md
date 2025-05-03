@@ -1,4 +1,3 @@
-
 # OrganizationScoped Mechanism - Implementation Steps
 
 ## 1. Overview
@@ -143,11 +142,11 @@ Provides multi-tenancy via an `organization` ForeignKey (Abstract Base Model) an
 
   ### 3.3 Deferred Steps (To be done AFTER RBAC Implementation - Ranking #9 & #10)
 
-  [ ] **Implement RBAC Strategy & Org-Aware `has_perm`:** Define roles/permissions and implement the actual `rbac.permissions.has_perm_in_org` function (Ranking #8 & #9).
-  [ ] **Apply Mixins to Concrete Models/Views:** Inherit `OrganizationScoped` in models (e.g., `Product`) and `OrganizationScopedViewSetMixin` in their ViewSets (e.g., `ProductViewSet`). Run `makemigrations`/`migrate`.
-  [ ] **Full Integration Testing:**
-      *   Remove mocking for `has_perm_in_org` in `base_models/comon/OrganizationScoped/tests/integration/test_orgscoped_views.py` and ensure tests pass with the *real* permission check.
-      *   Add comprehensive API tests to *concrete ViewSets* (like `ProductViewSet`) verifying LIST filtering (data isolation) and CREATE/UPDATE/DELETE operations succeed/fail based on the user's *actual* role and permissions within the target organization, as checked by the integrated `OrganizationScopedViewSetMixin` and the real RBAC function.
+  [x] **Implement RBAC Strategy & Org-Aware `has_perm`:** Define roles/permissions and implement the actual `rbac.permissions.has_perm_in_org` function (Ranking #8 & #9).
+  [x] **Apply Mixins to Concrete Models/Views:** Inherit `OrganizationScoped` in models (e.g., `Product`, `Contact`) and `OrganizationScopedViewSetMixin` in their ViewSets (e.g., `ProductViewSet`, `ContactViewSet`). Run `makemigrations`/`migrate`.
+  [x] **Full Integration Testing:**
+      *   Remove mocking for `has_perm_in_org` in `core/tests/integration/test_orgscoped_views.py` and ensure tests pass with the *real* permission check.
+      *   Add comprehensive API tests to *concrete ViewSets* (like `ContactViewSet`) verifying LIST filtering (data isolation) and CREATE/UPDATE/DELETE operations succeed/fail based on the user's *actual* role and permissions within the target organization, as checked by the integrated `OrganizationScopedViewSetMixin` and the real RBAC function.
 
   ### 3.4 Documentation Updates
 

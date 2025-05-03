@@ -2,6 +2,11 @@ from rest_framework import viewsets, filters, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+import logging
+
+# Import Mixin and RBAC Permission
+from core.views import OrganizationScopedViewSetMixin 
+from core.rbac.drf_permissions import HasModelPermissionInOrg
 
 from api.v1.base_models.contact.models import (
     Contact, ContactEmailAddress, ContactPhoneNumber, ContactAddress
@@ -12,10 +17,13 @@ from api.v1.base_models.contact.serializers import (
 )
 from api.v1.base_models.contact.filters import ContactFilter
 
+logger = logging.getLogger(__name__)
 
-class ContactViewSet(viewsets.ModelViewSet):
+# Add OrganizationScopedViewSetMixin inheritance
+class ContactViewSet(OrganizationScopedViewSetMixin, viewsets.ModelViewSet):
     """
     ViewSet for viewing and editing contacts.
+    Automatically scoped by Organization.
     
     Supports:
     - List/Create/Retrieve/Update/Delete operations
@@ -24,7 +32,8 @@ class ContactViewSet(viewsets.ModelViewSet):
     - Ordering by multiple fields
     - Nested channel operations (email, phone, address)
     """
-    permission_classes = [permissions.IsAuthenticated]
+    # Apply Org Scoping and RBAC permissions
+    permission_classes = [HasModelPermissionInOrg]
     http_method_names = ['get', 'post', 'put', 'patch', 'delete', 'head']
     queryset = Contact.objects.prefetch_related(
         'email_addresses',
@@ -46,12 +55,6 @@ class ContactViewSet(viewsets.ModelViewSet):
     ]
     ordering = ['-created_at']  # Default ordering
 
-    def get_queryset(self):
-        """Override to add custom filtering based on user permissions."""
-        queryset = super().get_queryset()
-        # Add any custom filtering based on user permissions here
-        return queryset
-
     @action(detail=True, methods=['get'])
     def channels(self, request, pk=None):
         """Get all communication channels for a contact."""
@@ -69,17 +72,13 @@ class ContactViewSet(viewsets.ModelViewSet):
         }
         return Response(data)
 
-    def perform_create(self, serializer):
-        """Override to handle any post-create operations."""
-        instance = serializer.save()
-        # Add any post-create operations here
-        return instance
-
-    def perform_update(self, serializer):
-        """Override to handle any post-update operations."""
-        instance = serializer.save()
-        # Add any post-update operations here
-        return instance
+    # Explicitly define partial_update to ensure the base DRF logic is called
+    # This seemed necessary to make ContactSerializer.update get called correctly.
+    def partial_update(self, request, *args, **kwargs):
+        # logger.info(f"[ContactViewSet.partial_update ENTRY] Request data: {request.data}")
+        response = super().partial_update(request, *args, **kwargs)
+        # logger.info(f"[ContactViewSet.partial_update EXIT] Response status: {response.status_code}, Response data: {response.data}")
+        return response
 
     def perform_destroy(self, instance):
         """Override to handle any pre-delete operations."""

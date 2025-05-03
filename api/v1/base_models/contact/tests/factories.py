@@ -10,24 +10,23 @@ from api.v1.base_models.contact.choices import (
     EmailType, PhoneType, AddressType
 )
 from api.v1.base_models.common.address.tests.factories import AddressFactory
+from api.v1.base_models.organization.tests.factories import OrganizationFactory
 
 fake = Faker()
 
 class ContactFactory(DjangoModelFactory):
-    """Factory for creating Contact instances."""
+    """Factory for Contact model."""
     class Meta:
         model = Contact
 
     first_name = factory.Faker('first_name')
     last_name = factory.Faker('last_name')
     title = factory.Faker('job')
-    organization_name = factory.Faker('company')
-    linked_organization = None  # Will be set in tests if needed
-    contact_type = factory.Faker('random_element', elements=[x[0] for x in ContactType.CHOICES])
-    status = factory.Faker('random_element', elements=[x[0] for x in ContactStatus.CHOICES])
-    source = factory.Faker('random_element', elements=[x[0] for x in ContactSource.CHOICES])
-    notes = factory.Faker('text', max_nb_chars=200)
-    custom_fields = factory.LazyFunction(lambda: {})
+    organization = factory.SubFactory(OrganizationFactory)
+    contact_type = factory.Iterator(ContactType.CHOICES, getter=lambda c: c[0])
+    status = factory.Iterator(ContactStatus.CHOICES, getter=lambda c: c[0])
+    source = factory.Iterator(ContactSource.CHOICES, getter=lambda c: c[0])
+    notes = factory.Faker('text')
 
 
 class ContactEmailAddressFactory(DjangoModelFactory):

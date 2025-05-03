@@ -184,7 +184,16 @@ SECURE_HSTS_PRELOAD = env.bool('SECURE_HSTS_PRELOAD', default=False)
 CACHES = { # Base Cache setup (default uses env var or LocMem)
     'default': env.cache('CACHE_URL', default='locmemcache://'),
     'permissions': env.cache('PERMISSIONS_CACHE_URL', default='locmemcache://permissions'),
-    'api_responses': env.cache('API_RESPONSES_CACHE_URL', default='locmemcache://api_responses'),
+    'api_responses': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-api-responses',
+    },
+    # Add RBAC cache definition
+    'rbac': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-rbac', # Unique location
+        'TIMEOUT': 3600, # Default timeout (e.g., 1 hour)
+    }
 }
 LOGGING = { # Base Logging config
     'version': 1, 'disable_existing_loggers': False,

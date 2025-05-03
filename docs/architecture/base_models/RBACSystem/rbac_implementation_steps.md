@@ -1,4 +1,3 @@
-
 # RBAC System (Org-Aware Model-Level) - Implementation Steps
 
 ## 1. Overview
@@ -196,13 +195,13 @@ Implements organization-aware checking for standard Django model-level permissio
 
   ### 3.3 ViewSet Permission Integration
 
-  [ ] **(Test First)** Write full API tests for sample ViewSets (e.g., `ProductViewSet`, `WarehouseViewSet`) that inherit `OrganizationScopedViewSetMixin`.
+  [x] **(Test First)** Write full API tests for sample ViewSets (e.g., `ProductViewSet`, `WarehouseViewSet`) that inherit `OrganizationScopedViewSetMixin`.
       *   Ensure the ViewSet's `permission_classes` includes the custom `HasModelPermissionInOrg` (or equivalent).
       *   Test LIST (ensure results are filtered by org *and* user has view perm).
       *   Test CREATE (ensure `perform_create` checks `add` perm in target org).
       *   Test RETRIEVE/UPDATE/DELETE (ensure `has_object_permission` checks `view`/`change`/`delete` perm against the object's org).
       *   Test with users in different roles/orgs.
-  [ ] Apply the custom permission classes to base ViewSets or specific ViewSets:
+  [x] Apply the custom permission classes to base ViewSets or specific ViewSets:
       ```python
       # api/v1/features/products/views.py (Example)
       from rbac.drf_permissions import HasModelPermissionInOrg # Adjust import
@@ -212,7 +211,7 @@ Implements organization-aware checking for standard Django model-level permissio
           permission_classes = [permissions.IsAuthenticated, HasModelPermissionInOrg] # Apply custom class
           # ...
       ```
-  [ ] **Crucially:** Ensure the `perform_create` method in `OrganizationScopedViewSetMixin` is now using the *real* `has_perm_in_org` function (update the import if it was using a placeholder).
+  [x] **Crucially:** Ensure the `perform_create` method in `OrganizationScopedViewSetMixin` is now using the *real* `has_perm_in_org` function (update the import if it was using a placeholder).
   [ ] Run full API tests for scoped models; expect pass. Refactor integration points.
 
   ### 3.4 Define Roles & Assign Permissions (Admin/Data Migration)

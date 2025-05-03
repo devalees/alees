@@ -6,8 +6,10 @@ from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.auth import get_user_model
 from taggit.managers import TaggableManager
 from taggit.models import TaggedItemBase
+import logging
 
 from core.models import Timestamped, Auditable
+from core.models import OrganizationScoped
 from api.v1.base_models.common.address.models import Address
 from api.v1.base_models.organization.models import Organization
 from api.v1.base_models.contact.choices import (
@@ -16,6 +18,7 @@ from api.v1.base_models.contact.choices import (
 )
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 class TaggedContact(TaggedItemBase):
@@ -26,8 +29,8 @@ class TaggedContact(TaggedItemBase):
         app_label = 'contact'
 
 
-class Contact(Timestamped, Auditable):
-    """Model for storing contact information."""
+class Contact(Timestamped, Auditable, OrganizationScoped):
+    """Model for storing contact information, scoped by Organization."""
     
     first_name = models.CharField(
         _('First Name'),
@@ -50,15 +53,6 @@ class Contact(Timestamped, Auditable):
         max_length=200,
         blank=True,
         help_text=_('Name of the organization if not linked to an existing one')
-    )
-    linked_organization = models.ForeignKey(
-        Organization,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='contacts',
-        verbose_name=_('Linked Organization'),
-        help_text=_('The organization this contact is linked to')
     )
     contact_type = models.CharField(
         _('Contact Type'),
@@ -108,7 +102,6 @@ class Contact(Timestamped, Auditable):
             models.Index(fields=['contact_type']),
             models.Index(fields=['status']),
             models.Index(fields=['source']),
-            models.Index(fields=['linked_organization'])
         ]
 
     def __str__(self):
@@ -120,8 +113,6 @@ class Contact(Timestamped, Auditable):
             raise ValidationError(_('At least one name field (first or last) must be provided'))
         if self.custom_fields and not isinstance(self.custom_fields, dict):
             raise ValidationError(_('Custom fields must be a dictionary'))
-        if self.organization_name and self.linked_organization:
-            raise ValidationError(_('Cannot provide both organization name and linked organization'))
 
     @property
     def full_name(self):
@@ -185,20 +176,36 @@ class ContactEmailAddress(Timestamped, Auditable):
     def __str__(self):
         return f"{self.contact}: {self.email} ({self.get_email_type_display()})"
 
-    def save(self, *args, **kwargs):
-        """Override save to handle primary flag."""
+    def clean(self):
+        """Validate email format and primary uniqueness."""
+        super().clean() # Call parent clean methods
+        if self.email and '@' not in self.email:
+            raise ValidationError({"email": _("Invalid email format")})
+        
+        # Check for primary uniqueness during validation
         if self.is_primary:
-            # Set all other email addresses for this contact as non-primary
-            ContactEmailAddress.objects.filter(
+            existing_primary = ContactEmailAddress.objects.filter(
+                contact=self.contact, 
+                is_primary=True
+            ).exclude(pk=self.pk).first()
+            if existing_primary:
+                raise ValidationError(
+                    _("Only one primary email address is allowed per contact. ") + 
+                    _("Existing primary: %(email)s") % {'email': existing_primary.email}
+                )
+
+    def save(self, *args, **kwargs):
+        """Ensure only one primary email exists after saving."""
+        # logger.info(f"Saving ContactEmailAddress {self.pk} for Contact {self.contact_id}. is_primary={self.is_primary}")
+        if self.is_primary:
+            # logger.info(f"Setting other emails for Contact {self.contact_id} to non-primary.")
+            updated_count = ContactEmailAddress.objects.filter(
                 contact=self.contact,
                 is_primary=True
             ).exclude(pk=self.pk).update(is_primary=False)
+            # logger.info(f"Updated {updated_count} other email(s) to non-primary.")
         super().save(*args, **kwargs)
-
-    def clean(self):
-        """Validate email format."""
-        if not self.email or '@' not in self.email:
-            raise ValidationError("Invalid email format")
+        # logger.info(f"Finished saving ContactEmailAddress {self.pk}")
 
 
 class ContactPhoneNumber(Timestamped, Auditable):
@@ -244,24 +251,36 @@ class ContactPhoneNumber(Timestamped, Auditable):
         return f"{self.contact}: {self.phone_number} ({self.get_phone_type_display()})"
 
     def clean(self):
-        """Validate the phone number format."""
+        """Validate phone number format and primary uniqueness."""
+        super().clean()
         if self.phone_number:
-            # Basic validation - ensure it starts with + and has digits
+            # Basic validation
             if not self.phone_number.startswith('+'):
-                raise ValidationError(_('Phone number should start with +'))
+                raise ValidationError({'phone_number': _('Phone number should start with +')})
             if not self.phone_number[1:].isdigit():
-                raise ValidationError(_('Phone number should contain only digits after +'))
-            if len(self.phone_number) < 8:  # Minimum length for a valid phone number
-                raise ValidationError(_('Phone number is too short'))
-            if len(self.phone_number) > 15:  # Maximum length for a valid phone number
-                raise ValidationError(_('Phone number is too long'))
+                raise ValidationError({'phone_number': _('Phone number should contain only digits after +')})
+            if len(self.phone_number) < 8:
+                raise ValidationError({'phone_number': _('Phone number is too short')})
+            if len(self.phone_number) > 15:
+                raise ValidationError({'phone_number': _('Phone number is too long')})
+        
+        # Check for primary uniqueness during validation
+        if self.is_primary:
+            existing_primary = ContactPhoneNumber.objects.filter(
+                contact=self.contact, 
+                is_primary=True
+            ).exclude(pk=self.pk).first()
+            if existing_primary:
+                raise ValidationError(
+                     _("Only one primary phone number is allowed per contact. ") + 
+                     _("Existing primary: %(phone)s") % {'phone': existing_primary.phone_number}
+                )
 
     def save(self, *args, **kwargs):
-        """Override save to handle primary flag."""
+        """Ensure only one primary phone exists after saving."""
         if self.is_primary:
-            # Set all other phone numbers for this contact as non-primary
             ContactPhoneNumber.objects.filter(
-                contact=self.contact,
+                contact=self.contact, 
                 is_primary=True
             ).exclude(pk=self.pk).update(is_primary=False)
         super().save(*args, **kwargs)
@@ -309,12 +328,25 @@ class ContactAddress(Timestamped, Auditable):
     def __str__(self):
         return f"{self.contact}: {self.address} ({self.get_address_type_display()})"
 
-    def save(self, *args, **kwargs):
-        """Override save to handle primary flag."""
+    def clean(self):
+        """Check primary uniqueness."""
+        super().clean()
         if self.is_primary:
-            # Set all other addresses for this contact as non-primary
+            existing_primary = ContactAddress.objects.filter(
+                contact=self.contact, 
+                is_primary=True
+            ).exclude(pk=self.pk).first()
+            if existing_primary:
+                 raise ValidationError(
+                     _("Only one primary address is allowed per contact. ") + 
+                     _("Existing primary address ID: %(id)s") % {'id': existing_primary.address.pk}
+                 )
+
+    def save(self, *args, **kwargs):
+        """Ensure only one primary address exists after saving."""
+        if self.is_primary:
             ContactAddress.objects.filter(
-                contact=self.contact,
+                contact=self.contact, 
                 is_primary=True
             ).exclude(pk=self.pk).update(is_primary=False)
         super().save(*args, **kwargs)

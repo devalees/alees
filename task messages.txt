@@ -1,24 +1,16 @@
 === FOR IMPLEMENTATION ===
 based on project rules and attached implementation steps file do the following:
-## 3. Implementation Steps (TDD Workflow)
 
-  *(Models -> Single Primary Logic -> Factories -> Admin -> Migrations -> **Serializer (w/ Workaround)** -> API -> **Serializer Refactor (Later)**)*
+### 3.3 Deferred Steps (To be done AFTER RBAC Implementation - Ranking #9 & #10)
 
-  ### 3.1 Model Definitions (`models.py`)
+  [ ] **Implement RBAC Strategy & Org-Aware `has_perm`:** Define roles/permissions and implement the actual `rbac.permissions.has_perm_in_org` function (Ranking #8 & #9).
+  [ ] **Apply Mixins to Concrete Models/Views:** Inherit `OrganizationScoped` in models (e.g., `Product`) and `OrganizationScopedViewSetMixin` in their ViewSets (e.g., `ProductViewSet`). Run `makemigrations`/`migrate`.
+  [ ] **Full Integration Testing:**
+      *   Remove mocking for `has_perm_in_org` in `base_models/comon/OrganizationScoped/tests/integration/test_orgscoped_views.py` and ensure tests pass with the *real* permission check.
+      *   Add comprehensive API tests to *concrete ViewSets* (like `ProductViewSet`) verifying LIST filtering (data isolation) and CREATE/UPDATE/DELETE operations succeed/fail based on the user's *actual* role and permissions within the target organization, as checked by the integrated `OrganizationScopedViewSetMixin` and the real RBAC function.
 
-  [ ] **(Test First - Contact & Channels)** Write Unit Tests verifying all models (`Contact`, `ContactEmailAddress`, `ContactPhoneNumber`, `ContactAddress`). Ensure `Contact.linked_organization` FK exists and is **nullable**.
-  [ ] Define the `Contact` model *first* in `api/v1/base_models/contact/models.py`. Ensure `linked_organization` uses `null=True, blank=True`. Include `TaggableManager`.
-  [ ] Define the communication channel models (`ContactEmailAddress`, `ContactPhoneNumber`, `ContactAddress`) *after* `Contact`. Ensure `ContactAddress` links correctly to `common.Address`.
-  [ ] Run tests for all models; expect pass. Refactor.
-
-  ### 3.2 Single Primary Logic (Model `save` override)
-
-  [ ] **(Test First)** Write Integration Tests verifying single primary logic for Email, Phone, and Address models.
-  [ ] Implement the `save()` override method on channel models.
-  [ ] Run single primary logic tests; expect pass. Refactor.
-
+      
  
-
 with the following MUST follow rules:
 - MUST follow the attached document literally
 - DON'T expand your work beyond this task
@@ -39,8 +31,9 @@ Did you finished the following step:
 === FOR TEST ===
 please run docker-compose run --rm test to examine if any failed tests
 -focus on the failing tests
--fix one by one, then run the tests..
--keep running the tests until all tests are passed
+-fix one by one, then run the tests.
+- keep running the tests until all tests are passed
+- adding some console logs in potential areas caused the failed may helps 
 - run the tests to verify the implementation is passed
 
 - run the tests to verify that the actual implementation is passed
@@ -87,3 +80,13 @@ please run global pytest  to examine some failed tests
 
 
 
+
+please we need to enhance coverage rate to at least 90%
+The contact models have 81% coverage
+The contact serializers have 80% coverage
+The contact views have 79% coverage
+
+
+
+docker volume rm alees_postgres_data
+docker-compose up -d postgres redis

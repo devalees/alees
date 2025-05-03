@@ -6,9 +6,11 @@ from rest_framework.mixins import CreateModelMixin
 # from rest_framework.test import APIRequestFactory, force_authenticate # Remove APIRequestFactory
 from rest_framework.test import APIClient, force_authenticate # Import APIClient
 from rest_framework import permissions # Import permissions
+from django.contrib.auth import get_user_model
+from django.test import override_settings
 
 # Import your models and factories
-from api.v1.base_models.organization.models import Organization
+from api.v1.base_models.organization.models import Organization, OrganizationMembership
 from api.v1.base_models.organization.tests.factories import OrganizationFactory, OrganizationMembershipFactory
 from api.v1.base_models.user.tests.factories import UserFactory
 # Import the concrete test model from the new test app
@@ -129,11 +131,23 @@ class TestOrganizationScopedViewSetMixin:
         assert len(response.data['results']) == 0
 
     # --- Tests for perform_create --- (Added from Task Block 3)
-    def test_perform_create_success_with_permission(self, client, mocker, user_a, org_a):
-        """Verify successful creation when permission check passes."""
-        # Mock the RBAC check function used within perform_create
-        mocked_perm_check = mocker.patch('core.views.has_perm_in_org')
-        mocked_perm_check.return_value = True
+    def test_perform_create_success_with_permission(self, client, user_a, org_a):
+        """Verify successful creation when permission check passes.
+           Requires user_a to actually have add_concretescopedmodel perm in org_a.
+           (We need to grant this permission for the test setup)
+        """
+        # --- Grant Permission for Test ---
+        from django.contrib.auth.models import Permission, Group
+        from django.contrib.contenttypes.models import ContentType
+        ct = ContentType.objects.get_for_model(TestScopedModel)
+        add_perm = Permission.objects.get(content_type=ct, codename=f'add_{TestScopedModel._meta.model_name}')
+        test_group = Group.objects.create(name='ScopedModel Adders')
+        test_group.permissions.add(add_perm)
+        # Find user_a's membership and assign the group
+        membership_a = OrganizationMembership.objects.get(user=user_a, organization=org_a)
+        membership_a.role = test_group # Assign group as role
+        membership_a.save()
+        # --- End Permission Grant ---
 
         data = {'name': 'New Item A', 'organization': org_a.pk}
         test_url = reverse('test-scoped-item-list') # POST goes to the list endpoint
@@ -146,16 +160,12 @@ class TestOrganizationScopedViewSetMixin:
         new_item = TestScopedModel.objects.first()
         assert new_item.name == 'New Item A'
         assert new_item.organization == org_a
-        # Verify the permission check was called correctly (assuming perform_create constructs perm string)
-        # Note: We need the actual app_label and model_name from the *test* model
-        perm_string = f'{TestScopedModel._meta.app_label}.add_{TestScopedModel._meta.model_name}'
-        mocked_perm_check.assert_called_once_with(user_a, perm_string, org_a)
+        # Verify the permission check was called correctly (implicitly by mixin)
 
-    def test_perform_create_fail_without_permission(self, client, mocker, user_a, org_b):
-        """Verify creation fails if permission check returns False."""
-        mocked_perm_check = mocker.patch('core.views.has_perm_in_org')
-        mocked_perm_check.return_value = False # Simulate permission denied
-
+    def test_perform_create_fail_without_permission(self, client, user_a, org_b):
+        """Verify creation fails if permission check returns False.
+           User A should NOT have permission in Org B by default.
+        """
         data = {'name': 'New Item B', 'organization': org_b.pk}
         test_url = reverse('test-scoped-item-list')
         client.force_authenticate(user=user_a)
@@ -163,11 +173,7 @@ class TestOrganizationScopedViewSetMixin:
 
         assert response.status_code == status.HTTP_403_FORBIDDEN # Check for 403 Forbidden
         assert TestScopedModel.objects.count() == 0
-        # Check permission mock call
-        perm_string = f'{TestScopedModel._meta.app_label}.add_{TestScopedModel._meta.model_name}'
-        # We need to fetch org_b instance as perform_create receives the PK first
-        target_org = Organization.objects.get(pk=org_b.pk)
-        mocked_perm_check.assert_called_once_with(user_a, perm_string, target_org)
+        # Check permission mock call (implicitly done by mixin)
 
     def test_perform_create_fail_missing_organization(self, client, user_a):
         """Verify validation error if organization is missing in POST data."""
