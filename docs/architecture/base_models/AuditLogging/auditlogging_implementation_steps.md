@@ -1,4 +1,3 @@
-
 # Audit Logging System - Implementation Steps
 
 ## 1. Overview
@@ -20,26 +19,26 @@ Creates a historical trail of significant data changes (CRUD) and events (Login,
 
 ## 2. Prerequisites
 
-[ ] Verify prerequisite models/mixins (`Timestamped`, `User`, `Organization`, `ContentType`) are implemented and migrated.
-[ ] **Create new Django app:** `python manage.py startapp audit`.
-[ ] Add `'audit'` (or `core` if placed there) and `'django.contrib.contenttypes'` to `INSTALLED_APPS`.
-[ ] Ensure middleware for getting current user (e.g., `django-crum`) is configured.
+[x] Verify prerequisite models/mixins (`Timestamped`, `User`, `Organization`, `ContentType`) are implemented and migrated.
+[x] **Create new Django app:** `python manage.py startapp audit`.
+[x] Add `'audit'` (or `core` if placed there) and `'django.contrib.contenttypes'` to `INSTALLED_APPS`.
+[x] Ensure middleware for getting current user (e.g., `django-crum`) is configured.
 [ ] Ensure Celery is set up if asynchronous logging is desired (Decision: Sync or Async? Assuming **Sync initially**).
-[ ] Ensure `factory-boy` is set up. Factories for `User`, `Organization`, and representative auditable models (e.g., `Product`) exist.
+[x] Ensure `factory-boy` is set up. Factories for `User`, `Organization`, and representative auditable models (e.g., `Product`) exist.
 
 ## 3. Implementation Steps (TDD Workflow)
 
   ### 3.1 `AuditLog` Model Definition (`audit/models.py`)
 
-  [ ] **(Test First)**
+  [x] **(Test First)**
       Write **Unit Test(s)** (`audit/tests/unit/test_models.py`) verifying:
       *   An `AuditLog` instance can be created with required/nullable fields (`user`, `organization`, `action_type`, `content_type`, `object_id`, etc.).
       *   Default timestamping (via `Timestamped.created_at`) works.
       *   `changes` and `context` store JSON correctly.
       *   `__str__` method provides a useful representation.
       Run; expect failure (`AuditLog` doesn't exist).
-  [ ] Define the `AuditLog` class in `audit/models.py`.
-  [ ] Add required inheritance: `Timestamped`.
+  [x] Define the `AuditLog` class in `audit/models.py`.
+  [x] Add required inheritance: `Timestamped`.
       ```python
       # audit/models.py
       from django.conf import settings
@@ -133,11 +132,11 @@ Creates a historical trail of significant data changes (CRUD) and events (Login,
               return f"{self.get_action_type_display()} on {self.object_repr or self.object_id or 'System'} by {self.user or 'System'}"
 
       ```
-  [ ] Run tests; expect pass. Refactor.
+  [x] Run tests; expect pass. Refactor.
 
   ### 3.2 Factory Definition (`audit/tests/factories.py`)
 
-  [ ] Define `AuditLogFactory` in `audit/tests/factories.py`:
+  [x] Define `AuditLogFactory` in `audit/tests/factories.py`:
       ```python
       import factory
       from factory.django import DjangoModelFactory
@@ -174,12 +173,12 @@ Creates a historical trail of significant data changes (CRUD) and events (Login,
                   return str(self.content_object.pk) # Use string representation
               return None
       ```
-  [ ] **(Test)** Write simple tests ensuring the factory creates valid instances, including setting the GFK correctly.
+  [x] **(Test)** Write simple tests ensuring the factory creates valid instances, including setting the GFK correctly.
 
   ### 3.3 Helper Function (`audit/utils.py` or `audit/services.py`)
 
-  [ ] **(Test First)** Write Unit Tests for the `log_audit_event` helper function. Mock the `AuditLog.objects.create` call and verify it's called with the correct arguments based on inputs. Test masking logic if implemented here. Test context merging.
-  [ ] Create `audit/utils.py`. Define `log_audit_event` helper:
+  [x] **(Test First)** Write Unit Tests for the `log_audit_event` helper function. Mock the `AuditLog.objects.create` call and verify it's called with the correct arguments based on inputs. Test masking logic if implemented here. Test context merging.
+  [x] Create `audit/utils.py`. Define `log_audit_event` helper:
       ```python
       # audit/utils.py
       from django.contrib.contenttypes.models import ContentType
@@ -259,18 +258,18 @@ Creates a historical trail of significant data changes (CRUD) and events (Login,
               logger.error(f"Failed to create AuditLog entry: {e}", exc_info=True)
 
       ```
-  [ ] Run tests for helper; expect pass. Refactor.
+  [x] Run tests for helper; expect pass. Refactor.
 
   ### 3.4 Signal Receivers (`audit/signals.py`)
 
-  [ ] **(Test First)** Write Integration Tests (`audit/tests/integration/test_signals.py`) using `@pytest.mark.django_db`.
+  [x] **(Test First)** Write Integration Tests (`audit/tests/integration/test_signals.py`) using `@pytest.mark.django_db`.
       *   Test `post_save` on a sample audited model (e.g., `Product`):
           *   Create instance -> verify AuditLog created with `action_type='CREATE'`, correct user, object details.
           *   Update instance -> verify AuditLog created with `action_type='UPDATE'`, correct user, object details, and placeholder `changes=None` (or basic diff if implemented).
       *   Test `post_delete` -> verify `AuditLog` created with `action_type='DELETE'`.
       *   Test auth signals (`user_logged_in`, etc.) -> verify correct AuditLog created with user and context (mock request for IP).
       Run; expect failure (receivers not connected).
-  [ ] Create `audit/signals.py`. Define signal receivers using the helper function.
+  [x] Create `audit/signals.py`. Define signal receivers using the helper function.
       ```python
       # audit/signals.py
       from django.conf import settings
@@ -373,7 +372,7 @@ Creates a historical trail of significant data changes (CRUD) and events (Login,
       # TODO: Add receivers for permission/role changes (m2m_changed)
 
       ```
-  [ ] Connect signals in `audit/apps.py`:
+  [x] Connect signals in `audit/apps.py`:
       ```python
       # audit/apps.py
       from django.apps import AppConfig
@@ -388,11 +387,11 @@ Creates a historical trail of significant data changes (CRUD) and events (Login,
               except ImportError:
                   pass
       ```
-  [ ] Run signal integration tests; expect pass. Refactor receiver logic, especially change calculation and org context retrieval.
+  [x] Run signal integration tests; expect pass. Refactor receiver logic, especially change calculation and org context retrieval.
 
   ### 3.5 Admin Registration (`audit/admin.py`)
 
-  [ ] Create `audit/admin.py`. Define `AuditLogAdmin`.
+  [x] Create `audit/admin.py`. Define `AuditLogAdmin`.
       ```python
       # audit/admin.py
       from django.contrib import admin
@@ -438,11 +437,11 @@ Creates a historical trail of significant data changes (CRUD) and events (Login,
 
   ### 3.6 API Endpoint Definition (Optional - Read-Only)
 
-  [ ] **(Test First)** Write API tests for `/api/v1/audit-logs/`. Test permissions (admin/auditor only). Test filtering by user, org, type, date, object. Test pagination.
-  [ ] Define `AuditLogSerializer` (read-only).
-  [ ] Define `AuditLogViewSet` (inheriting `ReadOnlyModelViewSet`). Add necessary filters (`django-filter` recommended here). Secure with appropriate permission class.
-  [ ] Define URL routing.
-  [ ] Run API tests; expect pass.
+  [x] **(Test First)** Write API tests for `/api/v1/audit-logs/`. Test permissions (admin/auditor only). Test filtering by user, org, type, date, object. Test pagination.
+  [x] Define `AuditLogSerializer` (read-only).
+  [x] Define `AuditLogViewSet` (inheriting `ReadOnlyModelViewSet`). Add necessary filters (`django-filter` recommended here). Secure with appropriate permission class.
+  [x] Define URL routing.
+  [x] Run API tests; expect pass.
 
 ## 4. Final Checks
 

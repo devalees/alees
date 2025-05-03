@@ -1,14 +1,12 @@
 === FOR IMPLEMENTATION ===
 based on project rules and attached implementation steps file do the following:
+### 3.6 API Endpoint Definition (Optional - Read-Only)
 
-### 3.3 Deferred Steps (To be done AFTER RBAC Implementation - Ranking #9 & #10)
-
-  [ ] **Implement RBAC Strategy & Org-Aware `has_perm`:** Define roles/permissions and implement the actual `rbac.permissions.has_perm_in_org` function (Ranking #8 & #9).
-  [ ] **Apply Mixins to Concrete Models/Views:** Inherit `OrganizationScoped` in models (e.g., `Product`) and `OrganizationScopedViewSetMixin` in their ViewSets (e.g., `ProductViewSet`). Run `makemigrations`/`migrate`.
-  [ ] **Full Integration Testing:**
-      *   Remove mocking for `has_perm_in_org` in `base_models/comon/OrganizationScoped/tests/integration/test_orgscoped_views.py` and ensure tests pass with the *real* permission check.
-      *   Add comprehensive API tests to *concrete ViewSets* (like `ProductViewSet`) verifying LIST filtering (data isolation) and CREATE/UPDATE/DELETE operations succeed/fail based on the user's *actual* role and permissions within the target organization, as checked by the integrated `OrganizationScopedViewSetMixin` and the real RBAC function.
-
+  [ ] **(Test First)** Write API tests for `/api/v1/audit-logs/`. Test permissions (admin/auditor only). Test filtering by user, org, type, date, object. Test pagination.
+  [ ] Define `AuditLogSerializer` (read-only).
+  [ ] Define `AuditLogViewSet` (inheriting `ReadOnlyModelViewSet`). Add necessary filters (`django-filter` recommended here). Secure with appropriate permission class.
+  [ ] Define URL routing.
+  [ ] Run API tests; expect pass.
       
  
 with the following MUST follow rules:
@@ -90,3 +88,17 @@ The contact views have 79% coverage
 
 docker volume rm alees_postgres_data
 docker-compose up -d postgres redis
+
+
+
+
+
+
+FAILED core/tests/integration/test_orgscoped_views.py::TestOrganizationScopedViewSetMixin::test_user_b_sees_org_b_only - django.db.utils.OperationalError: deadlock detected
+
+Results (40.49s):
+     435 passed
+       1 error
+       2 skipped
+ERROR: 1
+--------- yesy failing with -n but passed with n-0

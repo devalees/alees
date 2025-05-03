@@ -26,4 +26,5 @@ urlpatterns = [
     # API endpoints
     path('', include(base_models_urls)),
     path('', include(features_urls)),
+    path('audit/', include('core.audit.urls', namespace='audit')),
 ] 
