@@ -35,14 +35,22 @@ ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
 
 # Cache (Use LocMemCache for test isolation)
 CACHES = {
-    'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache', 'LOCATION': 'unique-default-test'},
+    'default': { # Keep default as is (likely memory or dummy)
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'default-test-cache',
+    },
+    'rbac': { # Define the rbac cache needed by core.rbac.permissions
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache', # Use in-memory for tests
+        'LOCATION': 'rbac-test-cache', # Unique location name
+        'TIMEOUT': 300, # Optional: Shorter timeout for tests
+    },
     'permissions': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache', 'LOCATION': 'unique-permissions-test'},
     'api_responses': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache', 'LOCATION': 'unique-api-responses-test'},
 }
 
-# Celery (Run synchronously for tests)
-CELERY_TASK_ALWAYS_EAGER = env.bool('CELERY_TASK_ALWAYS_EAGER', default=True)
-CELERY_TASK_EAGER_PROPAGATES = env.bool('CELERY_TASK_EAGER_PROPAGATES', default=True)
+# Celery - Run tasks synchronously for testing
+CELERY_TASK_ALWAYS_EAGER = True
+CELERY_TASK_EAGER_PROPAGATES = True # Propagate exceptions raised in tasks
 CELERY_BROKER_URL = env('TEST_CELERY_BROKER_URL', default='memory://')
 CELERY_RESULT_BACKEND = env('TEST_CELERY_RESULT_BACKEND', default='cache+memory://')
 
@@ -80,3 +88,13 @@ _DEVS_APPS_TO_REMOVE = ['debug_toolbar', 'django_extensions']
 INSTALLED_APPS = ['core.tests_app.apps.CoreTestsAppConfig'] + \
                  [app for app in INSTALLED_APPS if app not in _DEVS_APPS_TO_REMOVE]
 MIDDLEWARE = [m for m in MIDDLEWARE if 'debug_toolbar' not in m]
+
+# Remove the dynamic test app config path
+# INSTALLED_APPS += [
+#     'core.rbac.tests.integration.apps.RBACIntegrationTestAppConfig',
+# ]
+
+# Remove the dynamically added app path that caused issues
+# INSTALLED_APPS += [
+#     'core.rbac.tests.integration.test_viewset_integration',
+# ]

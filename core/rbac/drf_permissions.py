@@ -24,44 +24,53 @@ class HasModelPermissionInOrg(permissions.BasePermission):
 
      def has_permission(self, request, view):
          # For LIST and CREATE (no specific object yet)
-         # Check authentication first
-         if not request.user or not request.user.is_authenticated:
-              return False
-         # Superuser bypass
-         if request.user.is_superuser:
-              return True
+         print(f"[PermClass] has_permission called for action: {view.action}") # DEBUG
+         user = request.user
+         if not user or not user.is_authenticated: return False
+         if user.is_superuser: return True
 
-         # Ensure the view has a queryset to derive the model from
-         if not hasattr(view, 'get_queryset'):
-              return False
+         # Need model to determine permission codename
+         model_meta = None
+         if hasattr(view, 'get_queryset'):
+             queryset = view.get_queryset()
+             if queryset is not None:
+                 model_meta = queryset.model._meta
+         elif hasattr(view, 'get_serializer'):
+             serializer = view.get_serializer()
+             if hasattr(serializer.Meta, 'model'):
+                 model_meta = serializer.Meta.model._meta
          
-         queryset = view.get_queryset()
-         model_meta = queryset.model._meta
+         if not model_meta:
+             print("[PermClass] Cannot determine model from view") # DEBUG
+             return False # Cannot determine model
+
          required_perm = _get_required_permission(view.action, model_meta)
+         print(f"[PermClass] Required perm for {view.action}: {required_perm}") # DEBUG
 
          if not required_perm: 
-              return False 
+             print("[PermClass] No standard permission required for action") # DEBUG
+             return False # Action doesn't map to a standard perm
 
-         if view.action == 'list':
-             return True # Rely on OrganizationScopedViewSetMixin filtering
-         elif view.action == 'create':
-             return True # Let perform_create handle org-specific check
-         else:
-             return False
+         # For List/Create, the check is primarily done by get_queryset filtering
+         # or perform_create. We allow the view to proceed if authenticated.
+         # The actual org-specific permission check happens later.
+         print("[PermClass] Allowing base permission for List/Create, deferring org check") # DEBUG
+         return True 
 
      def has_object_permission(self, request, view, obj):
          # For RETRIEVE, UPDATE, PARTIAL_UPDATE, DESTROY
-         # Check authentication first
-         if not request.user or not request.user.is_authenticated:
-              return False
-         # Superuser bypass
-         if request.user.is_superuser:
-              return True
+         print(f"[PermClass] has_object_permission called for action: {view.action} on obj {obj}") # DEBUG
+         user = request.user
+         if not user or not user.is_authenticated: return False
+         if user.is_superuser: return True
 
          model_meta = obj._meta
          required_perm = _get_required_permission(view.action, model_meta)
+         print(f"[PermClass] Required perm for obj action: {required_perm}") # DEBUG
 
-         if not required_perm: return False # Action doesn't map to a standard permission
+         if not required_perm: return False
 
          # Use the org-aware helper function with the specific object
-         return has_perm_in_org(request.user, required_perm, obj) 
+         has_perm = has_perm_in_org(user, required_perm, obj)
+         print(f"[PermClass] has_object_permission result: {has_perm}") # DEBUG
+         return has_perm 

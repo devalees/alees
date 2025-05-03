@@ -41,6 +41,15 @@ class GroupFactory(DjangoModelFactory):
 
     name = factory.Sequence(lambda n: f'Group {n}')
 
+    # Add post-generation hook for permissions M2M
+    @factory.post_generation
+    def permissions(self, create, extracted, **kwargs):
+        if not create or not extracted:
+            # Simple build, do nothing.
+            return
+        # A list/tuple of permissions were passed
+        self.permissions.set(extracted)
+
 class OrganizationMembershipFactory(factory.django.DjangoModelFactory):
     """Factory for OrganizationMembership model"""
     

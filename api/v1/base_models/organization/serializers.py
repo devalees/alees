@@ -198,11 +198,13 @@ class OrganizationMembershipSerializer(serializers.ModelSerializer):
         }
 
     def get_role_detail(self, obj):
-        """Return nested role data"""
-        return {
-            'id': obj.role.id,
-            'name': obj.role.name
-        }
+        """Return nested role data, handling cases where role is None."""
+        if obj.role: # Check if role exists
+            return {
+                'id': obj.role.id,
+                'name': obj.role.name
+            }
+        return None # Return None or an empty dict if role is not assigned
 
     def validate(self, attrs):
         """Validate that the user is not already a member of the organization with the same role"""

@@ -12,80 +12,82 @@ from api.v1.base_models.organization.models import OrganizationMembership, Organ
 
 User = get_user_model()
 
-permission_cache = caches['permissions']
+permission_cache = caches['rbac']
 CACHE_TIMEOUT = settings.RBAC_CACHE_TIMEOUT if hasattr(settings, 'RBAC_CACHE_TIMEOUT') else 3600 # Default 1 hour
 
-# @lru_cache(maxsize=...) # Keep lru_cache commented for now, focus on Django cache
+# @lru_cache(maxsize=...) # Simple in-memory cache (per process)
 def has_perm_in_org(
     user: Union[User, AnonymousUser, None],
     perm_codename: str,
-    org_or_obj: Union[Organization, models.Model, Any]
+    org_or_obj: Union[Organization, Any]
 ) -> bool:
     """
     Checks if a user has a specific model-level permission within the
-    context of a given organization or org-scoped object, utilizing caching.
-
-    Args:
-        user: The user instance to check.
-        perm_codename: The permission codename (e.g., 'app_label.codename').
-        org_or_obj: An Organization instance or an object with an 'organization' attribute.
-
-    Returns:
-        True if the user has the permission in the organization context, False otherwise.
+    context of a given organization or org-scoped object.
     """
-    if not user or not getattr(user, 'is_authenticated', False): # Handles None and AnonymousUser
+    # print(f"[has_perm_in_org] Checking user '{user}' perm '{perm_codename}' for obj/org '{org_or_obj}'") # DEBUG
+    if not user or not getattr(user, 'is_authenticated', False):
+        # print("[has_perm_in_org] Denied: User not authenticated") # DEBUG
         return False
     if getattr(user, 'is_superuser', False):
+        # print("[has_perm_in_org] Allowed: User is superuser") # DEBUG
         return True
 
     # Determine the organization
-    organization: Optional[Organization] = None
+    organization = None
     if isinstance(org_or_obj, Organization):
         organization = org_or_obj
+        # print(f"[has_perm_in_org] Determined org {organization.pk} directly") # DEBUG
     elif hasattr(org_or_obj, 'organization') and isinstance(getattr(org_or_obj, 'organization'), Organization):
         organization = getattr(org_or_obj, 'organization')
-
-    if organization is None:
+        # print(f"[has_perm_in_org] Determined org {organization.pk} from obj attribute") # DEBUG
+    else:
         # Cannot determine organization context
+        # print("[has_perm_in_org] Denied: Cannot determine organization context") # DEBUG
         return False
 
-    # --- Check Cache --- (Caches the set of permission codenames for the user in this org)
-    # Use getattr(user, 'pk', None) to safely access pk for AnonymousUser cases although they should be filtered out
+    # --- Check Cache ---
     user_pk = getattr(user, 'pk', None)
-    if user_pk is None:
-         return False # Should not happen if is_authenticated check passed
-
+    if user_pk is None: return False # Should not happen
     cache_key = f'rbac:perms:user:{user_pk}:org:{organization.pk}'
     cached_perms_set: Optional[set[str]] = permission_cache.get(cache_key)
-
-    actual_perm_codename = perm_codename.split('.')[-1]
+    actual_perm_codename = perm_codename.split('.')[-1] # Use only codename part for check
 
     if cached_perms_set is not None:
-        # Cache hit: Check if the specific permission is in the cached set
-        return actual_perm_codename in cached_perms_set
+        # print(f"[has_perm_in_org] Cache hit for {cache_key}") # DEBUG
+        has_perm = actual_perm_codename in cached_perms_set
+        # print(f"[has_perm_in_org] Allowed from cache: {has_perm}") # DEBUG
+        return has_perm
+    # else:
+    #     print(f"[has_perm_in_org] Cache miss for {cache_key}") # DEBUG
     # --- End Cache Check ---
 
     # --- Cache Miss: Fetch from DB --- 
     permissions_set: set[str] = set()
+    # Find active membership for this specific org
     try:
-        membership = OrganizationMembership.objects.select_related('role')\
-                                                 .prefetch_related('role__permissions')\
-                                                 .get(user=user, organization=organization, is_active=True)
+        # Use select_related for the ForeignKey 'role', not the M2M 'permissions'
+        membership = OrganizationMembership.objects.select_related('role') \
+                                             .get(user=user, organization=organization, is_active=True)
+        # print(f"[has_perm_in_org] Found membership {membership.pk} with role {membership.role}") # DEBUG
         if membership.role:
             # Get all permission codenames for the assigned role
             permissions_set = set(
                 membership.role.permissions.values_list('codename', flat=True)
             )
-
+            # print(f"[has_perm_in_org] Role '{membership.role.name}' perms: {permissions_set}") # DEBUG
     except OrganizationMembership.DoesNotExist:
-        # User not an active member or no membership exists for this org
+        # print(f"[has_perm_in_org] Denied: No active membership for user {user_pk} in org {organization.pk}") # DEBUG
         pass # permissions_set remains empty
 
     # --- Set Cache --- 
     permission_cache.set(cache_key, permissions_set, timeout=CACHE_TIMEOUT)
+    # print(f"[has_perm_in_org] Set cache {cache_key} with perms: {permissions_set}") # DEBUG
     # --- End Set Cache --- 
 
     # Check if the required permission exists in the (newly cached) set
-    return actual_perm_codename in permissions_set
+    has_perm = actual_perm_codename in permissions_set
+    # print(f"[has_perm_in_org] Permission result (after DB check): {has_perm}") # DEBUG
+    return has_perm
 
-# --- Cache Invalidation placeholder (Implementation in signals.py) --- 
+# --- Cache Invalidation (Simplified Example - needs refinement) --- 
