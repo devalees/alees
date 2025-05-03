@@ -12,11 +12,14 @@ from api.v1.base_models.user.tests.factories import UserFactory
 
 User = get_user_model()
 
-AUDIT_LOG_LIST_URL = reverse("v1:audit:auditlog-list")
+# Use the new 'core' namespace
+AUDIT_NAMESPACE = "core"
+
+AUDIT_LOG_LIST_URL = reverse(f"{AUDIT_NAMESPACE}:auditlog-list")
 
 
 def detail_url(audit_log_id):
-    return reverse("v1:audit:auditlog-detail", args=[audit_log_id])
+    return reverse(f"{AUDIT_NAMESPACE}:auditlog-detail", args=[audit_log_id])
 
 
 @pytest.mark.django_db
@@ -133,13 +136,13 @@ class TestAuditLogViewSetFilteringAndPagination:
         assert response.status_code == status.HTTP_200_OK
 
         # --- Debugging --- 
-        print("\n--- Debugging test_filter_by_organization ---")
-        print(f"Filtering for org1 PK: {self.org1.pk}")
-        print(f"Expected log IDs: {{log1: {self.log1_user1_org1_create.pk}, log3: {self.log3_user2_org1_delete.pk}, log5: {self.log5_admin_org1_event.pk}}}")
-        actual_ids = {item['id'] for item in response.data['results']}
-        print(f"Actual log IDs found: {actual_ids}")
-        print(f"Actual response count: {response.data['count']}")
-        print("--- End Debugging ---\n")
+        # print("\n--- Debugging test_filter_by_organization ---")
+        # print(f"Filtering for org1 PK: {self.org1.pk}")
+        # print(f"Expected log IDs: {{log1: {self.log1_user1_org1_create.pk}, log3: {self.log3_user2_org1_delete.pk}, log5: {self.log5_admin_org1_event.pk}}}")
+        # actual_ids = {item['id'] for item in response.data['results']}
+        # print(f"Actual log IDs found: {actual_ids}")
+        # print(f"Actual response count: {response.data['count']}")
+        # print("--- End Debugging ---\n")
         # --- End Debugging ---
 
         assert response.data['count'] == 3 # Expecting log1, log3, log5

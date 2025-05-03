@@ -8,6 +8,7 @@ from django.apps import apps # Import apps registry
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/v1/', include('api.v1.urls', namespace='v1')),
+    path('api/core/', include('core.urls', namespace='core')),
 ]
 
 # Add static and media URLs for development server convenience
