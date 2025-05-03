@@ -14,6 +14,7 @@ from .auth.views import (
     TOTPDisableView,
     PasswordChangeView
 )
+from .fileStorage.views import FileStorageViewSet, FileUploadView # Import FileStorage views
 # from .address.views import AddressViewSet # Commented out
 # Import other common viewsets...
 
@@ -32,16 +33,20 @@ router.register(r'statuses', StatusViewSet, basename='status')
 # Register Currency ViewSet
 router.register(r'currencies', CurrencyViewSet, basename='currency')
 
+# Register FileStorage ViewSet (Note the combined prefix)
+router.register(r'file-storage/files', FileStorageViewSet, basename='file') 
+
 # Register other common ViewSets (Commented out)
 # router.register(r'addresses', AddressViewSet, basename='address')
 
 
 # --- urlpatterns --- 
-# Start with router URLs
-urlpatterns = router.urls
-
-# Add specific Auth URLs with 'auth/' prefix
-urlpatterns += [
+# Define specific paths BEFORE the router include
+urlpatterns = [
+    # Specific FileStorage Upload URL
+    path('file-storage/files/upload/', FileUploadView.as_view(), name='file-upload'),
+    
+    # Specific Auth URLs
     path('auth/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/2fa/totp/setup/', TOTPSetupView.as_view(), name='2fa-totp-setup'),
@@ -49,6 +54,9 @@ urlpatterns += [
     path('auth/2fa/totp/disable/', TOTPDisableView.as_view(), name='2fa-totp-disable'),
     path('auth/password/change/', PasswordChangeView.as_view(), name='password-change'),
 ]
+
+# Add router URLs AFTER specific paths
+urlpatterns += router.urls
 
 # Ensure no leftover includes for deleted urls.py files
 

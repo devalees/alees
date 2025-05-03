@@ -16,6 +16,8 @@ from api.v1.base_models.organization.tests.factories import OrganizationMembersh
 # Assuming permission helper exists
 from api.v1.base_models.organization.tests.api.test_endpoints import get_permission 
 
+# Define the correct full namespace
+FILESTORAGE_NAMESPACE = "v1:base_models:common"
 
 @pytest.fixture
 def api_client():
@@ -47,8 +49,8 @@ def user_in_org(db, organization, default_role):
 
 @pytest.fixture
 def upload_url():
-    # Adjust namespace and name based on actual URL registration
-    return reverse('v1:base_models:file_storage:file-upload') 
+    # Use correct namespace and name
+    return reverse(f'{FILESTORAGE_NAMESPACE}:file-upload') 
 
 @pytest.fixture
 def test_file():
@@ -163,13 +165,13 @@ def file_instance(db, organization, user_in_org):
 
 @pytest.fixture
 def list_url():
-    # URL for the FileStorageViewSet list endpoint
-    return reverse('v1:base_models:file_storage:file-list')
+    # Use correct namespace and name
+    return reverse(f'{FILESTORAGE_NAMESPACE}:file-list')
 
 @pytest.fixture
 def detail_url(file_instance):
-    # URL for the FileStorageViewSet detail endpoint
-    return reverse('v1:base_models:file_storage:file-detail', kwargs={'pk': file_instance.id})
+    # Use correct namespace and name
+    return reverse(f'{FILESTORAGE_NAMESPACE}:file-detail', kwargs={'pk': file_instance.id})
 
 
 @pytest.mark.django_db
@@ -248,17 +250,22 @@ class TestFileStorageViewSet:
     def test_retrieve_different_org(self, api_client, user_in_org, detail_url):
         """Test RETRIEVE fails for file in a different organization."""
         # user_in_org belongs to 'organization' fixture
-        # file_instance (used by detail_url) also belongs to 'organization' fixture
-        # Create a user in a different org
+        # Create a file in another organization
         other_org = OrganizationFactory()
-        other_user = UserFactory(organization=other_org)
-        perm = get_permission(FileStorage, 'view_filestorage')
-        other_user.user_permissions.add(perm) # Give perm, but wrong org
+        other_file = FileStorageFactory(organization=other_org)
         
-        api_client.force_authenticate(user=other_user)
-        response = api_client.get(detail_url)
-        # Expect 404 because OrgScopedViewSetMixin should filter the queryset
-        assert response.status_code == status.HTTP_404_NOT_FOUND 
+        # Get the detail URL for the other file
+        other_detail_url = reverse(f'{FILESTORAGE_NAMESPACE}:file-detail', kwargs={'pk': other_file.id})
+        
+        # Assign view permission (should still fail due to org scoping)
+        perm = get_permission(FileStorage, 'view_filestorage')
+        user_in_org.user_permissions.add(perm)
+        api_client.force_authenticate(user=user_in_org)
+
+        response = api_client.get(other_detail_url)
+        
+        # Expect 404 because the queryset is scoped to the user's org
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_retrieve_unauthenticated(self, api_client, detail_url):
         """Test RETRIEVE endpoint fails for unauthenticated users."""
@@ -266,57 +273,60 @@ class TestFileStorageViewSet:
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_delete_success_with_perm(self, mocker, api_client, detail_url, file_instance, user_in_org):
-        """Test DELETE endpoint success with correct permission."""
-        # Assign delete permission
+        """Test DELETE success with delete permission."""
         perm = get_permission(FileStorage, 'delete_filestorage')
         user_in_org.user_permissions.add(perm)
         api_client.force_authenticate(user=user_in_org)
-
-        # Mock the file deletion on the FieldFile class itself
-        # mock_delete = mocker.patch.object(file_instance.file, 'delete')
+        
+        # Mock the actual file deletion from storage to avoid test failures
+        # Note: We need to mock the method on the FieldFile class itself
         mock_delete = mocker.patch.object(FieldFile, 'delete')
-
-        # --- DEBUG: Print type of file attribute ---
-        # print(f"\nDEBUG: Type of file_instance.file: {type(file_instance.file)}\n")
-        # --- END DEBUG ---
-
+        
+        initial_count = FileStorage.objects.count()
         response = api_client.delete(detail_url)
+        
         assert response.status_code == status.HTTP_204_NO_CONTENT
-        assert not FileStorage.objects.filter(pk=file_instance.pk).exists()
-        # Check the call on the mock applied to the class
-        # When patching a class method called by an instance, 
-        # assert_called_once_with checks the args *after* self.
-        # mock_delete.assert_called_once_with(file_instance.file, save=False) # Incorrect
-        mock_delete.assert_called_once_with(save=False) # Correct: only check kwargs
+        assert FileStorage.objects.count() == initial_count - 1
+        # Check that the mock was called (meaning physical deletion was attempted)
+        mock_delete.assert_called_once_with(save=False)
+        
+        # Verify the object no longer exists
+        with pytest.raises(FileStorage.DoesNotExist):
+            FileStorage.objects.get(id=file_instance.id)
 
     def test_delete_no_permission(self, api_client, detail_url, file_instance, user_in_org):
-        """Test DELETE endpoint fails without correct permission."""
-        # DO NOT assign delete permission
+        """Test DELETE fails without delete permission."""
+        # Assign only view perm, not delete perm
+        perm = get_permission(FileStorage, 'view_filestorage')
+        user_in_org.user_permissions.add(perm)
         api_client.force_authenticate(user=user_in_org)
 
         response = api_client.delete(detail_url)
         assert response.status_code == status.HTTP_403_FORBIDDEN
-        assert FileStorage.objects.filter(pk=file_instance.pk).exists()
+        # Verify object still exists
+        assert FileStorage.objects.filter(id=file_instance.id).exists()
 
     def test_delete_different_org(self, api_client, file_instance, user_in_org):
-        """Test DELETE endpoint fails for file in different organization."""
-        # Assign delete permission
+        """Test DELETE fails for file in a different organization."""
+        # Assign delete perm (should still fail due to org scoping)
         perm = get_permission(FileStorage, 'delete_filestorage')
         user_in_org.user_permissions.add(perm)
         api_client.force_authenticate(user=user_in_org)
-
-        # Create a file in a different org
+        
+        # Create file in other org
         other_org = OrganizationFactory()
         other_file = FileStorageFactory(organization=other_org)
-        other_detail_url = reverse('v1:base_models:file_storage:file-detail', kwargs={'pk': other_file.pk})
+        other_detail_url = reverse(f'{FILESTORAGE_NAMESPACE}:file-detail', kwargs={'pk': other_file.id})
 
         response = api_client.delete(other_detail_url)
-        # Should be 404 because the OrgScoped mixin filters it out
-        assert response.status_code == status.HTTP_404_NOT_FOUND 
-        assert FileStorage.objects.filter(pk=other_file.pk).exists()
+        # Expect 404 because the queryset is scoped
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        # Verify other file still exists
+        assert FileStorage.objects.filter(id=other_file.id).exists()
 
     def test_delete_unauthenticated(self, api_client, detail_url, file_instance):
-        """Test DELETE endpoint fails for unauthenticated user."""
+        """Test DELETE fails for unauthenticated users."""
         response = api_client.delete(detail_url)
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
-        assert FileStorage.objects.filter(pk=file_instance.pk).exists()
+        # Verify object still exists
+        assert FileStorage.objects.filter(id=file_instance.id).exists()
