@@ -6,6 +6,7 @@ from rest_framework_simplejwt.views import TokenRefreshView # Import simplejwt v
 from .uom.views import UomTypeViewSet, UnitOfMeasureViewSet
 from .status.views import StatusViewSet
 from .currency.views import CurrencyViewSet
+from .category.views import CategoryViewSet # Import CategoryViewSet
 # Import Auth views
 from .auth.views import (
     CustomTokenObtainPairView,
@@ -34,7 +35,10 @@ router.register(r'statuses', StatusViewSet, basename='status')
 router.register(r'currencies', CurrencyViewSet, basename='currency')
 
 # Register FileStorage ViewSet (Note the combined prefix)
-router.register(r'file-storage/files', FileStorageViewSet, basename='file') 
+router.register(r'file-storage/files', FileStorageViewSet, basename='file')
+
+# Register Category ViewSet
+router.register(r'categories', CategoryViewSet, basename='category')
 
 # Register other common ViewSets (Commented out)
 # router.register(r'addresses', AddressViewSet, basename='address')

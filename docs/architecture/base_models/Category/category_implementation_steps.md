@@ -17,23 +17,23 @@
 Provides a generic, hierarchical structure for classifying various ERP entities (Products, Documents, etc.). Uses `django-mptt` for tree management. Includes type discrimination, status, and custom fields.
 
 **Primary Location(s):**
-`api/v1/base_models/common/` (Assuming `common` app for shared entities)
+`api/v1/base_models/common/category/` (Assuming `common` app for shared entities)
 
 ## 2. Prerequisites
 
 [ ] Verify prerequisite models/mixins (`Timestamped`, `Auditable`) are implemented.
-[ ] Ensure the `common` app structure exists (`api/v1/base_models/common/`).
+[ ] Ensure the `common` app structure exists (`api/v1/base_models/common/category/`).
 [ ] Install required library: `pip install django-mptt`.
 [ ] Add `'mptt'` to `INSTALLED_APPS` in `config/settings/base.py`.
 [ ] Ensure `factory-boy` is set up. Basic User factory exists.
-[ ] Define `category_type` choices (e.g., in `common/choices.py` or directly in the model).
+[ ] Define `category_type` choices (e.g., in `common/category/choices.py`).
 
 ## 3. Implementation Steps (TDD Workflow)
 
   ### 3.1 Model Definition (`models.py`)
 
   [ ] **(Test First)**
-      Write **Unit Test(s)** (`tests/unit/test_models.py` in `common`) verifying:
+      Write **Unit Test(s)** (`tests/unit/test_models.py` in `common/category`) verifying:
       *   A `Category` instance can be created with required fields (`name`, `category_type`).
       *   `slug` is auto-generated from name if blank (requires overriding `save` or using a library like `django-autoslug`). Test unique constraint on `slug`.
       *   `parent` ForeignKey works (can assign parent category).
@@ -43,10 +43,10 @@ Provides a generic, hierarchical structure for classifying various ERP entities 
       *   `__str__` method returns name.
       *   Inherited `Timestamped`/`Auditable` fields exist.
       Run; expect failure (`Category` doesn't exist).
-  [ ] Define the `Category` class in `api/v1/base_models/common/models.py`.
+  [ ] Define the `Category` class in `api/v1/base_models/common/category/models.py`.
   [ ] Add required inheritance: `Timestamped`, `Auditable`, `MPTTModel`.
       ```python
-      # api/v1/base_models/common/models.py
+      # api/v1/base_models/common/category/models.py
       from django.db import models
       from django.utils.text import slugify
       from django.utils.translation import gettext_lazy as _
@@ -123,7 +123,7 @@ Provides a generic, hierarchical structure for classifying various ERP entities 
 
   ### 3.2 Factory Definition (`tests/factories.py`)
 
-  [ ] Define `CategoryFactory` in `api/v1/base_models/common/tests/factories.py`:
+  [ ] Define `CategoryFactory` in `api/v1/base_models/common/category/tests/factories.py`:
       ```python
       import factory
       from factory.django import DjangoModelFactory
@@ -145,7 +145,7 @@ Provides a generic, hierarchical structure for classifying various ERP entities 
 
   ### 3.3 Admin Registration (`admin.py`)
 
-  [ ] Create/Update `api/v1/base_models/common/admin.py`.
+  [ ] Create/Update `api/v1/base_models/common/category/admin.py`.
   [ ] Define `CategoryAdmin` using `DraggableMPTTAdmin`:
       ```python
       from django.contrib import admin
@@ -175,7 +175,7 @@ Provides a generic, hierarchical structure for classifying various ERP entities 
   ### 3.5 Serializer Definition (`serializers.py`)
 
   [ ] **(Test First)** Write Unit/Integration Tests (`tests/unit/test_serializers.py`, etc.) for `CategorySerializer`. Test validation (unique constraints), representation (include necessary fields, potentially parent ID/children count), custom field handling, hierarchy fields if needed.
-  [ ] Define `CategorySerializer` in `api/v1/base_models/common/serializers.py`. Consider using `rest_framework_mptt.serializers.MPTTModelSerializer` if available/needed for easy hierarchy representation.
+  [ ] Define `CategorySerializer` in `api/v1/base_models/common/category/serializers.py`. Consider using `rest_framework_mptt.serializers.MPTTModelSerializer` if available/needed for easy hierarchy representation.
       ```python
       from rest_framework import serializers
       # from rest_framework_mptt.serializers import MPTTModelSerializer # Option
@@ -209,7 +209,7 @@ Provides a generic, hierarchical structure for classifying various ERP entities 
   ### 3.6 API ViewSet Definition (`views.py`)
 
   [ ] **(Test First)** Write basic API Tests checking URL existence, permissions for `/api/v1/categories/`.
-  [ ] Define `CategoryViewSet` in `api/v1/base_models/common/views.py`:
+  [ ] Define `CategoryViewSet` in `api/v1/base_models/common/category/views.py`:
       ```python
       from rest_framework import viewsets, permissions
       from rest_framework.decorators import action
@@ -241,7 +241,7 @@ Provides a generic, hierarchical structure for classifying various ERP entities 
 
   ### 3.7 URL Routing (`urls.py`)
 
-  [ ] Import `CategoryViewSet` in `api/v1/base_models/common/urls.py`.
+  [ ] Import `CategoryViewSet` in `api/v1/base_models/common/category/urls.py`.
   [ ] Register with router: `router.register(r'categories', views.CategoryViewSet)`.
   [ ] **(Test):** Rerun basic API tests; expect 2xx/4xx codes.
 
@@ -263,7 +263,7 @@ Provides a generic, hierarchical structure for classifying various ERP entities 
 
 [ ] Run the *entire* test suite (`pytest`).
 [ ] Run linters (`flake8`) and formatters (`black`).
-[ ] Check code coverage (`pytest --cov=api/v1/base_models/common`). Review uncovered lines.
+[ ] Check code coverage (`pytest --cov=api/v1/base_models/common/ctegory`). Review uncovered lines.
 [ ] Manually test via API client and Django Admin (especially hierarchy drag-drop).
 [ ] Review API documentation draft.
 

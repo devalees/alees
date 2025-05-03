@@ -36,6 +36,7 @@ LOCAL_APPS = [
     'api.v1.base_models.common.auth.apps.AuthConfig',  # Updated auth app path
     'api.v1.base_models.common.apps.CommonConfig',
     'api.v1.base_models.common.address.apps.AddressConfig',  # Added address app
+    'api.v1.base_models.common.category.apps.CategoryConfig', # Added category app
     'api.v1.base_models.common.currency.apps.CurrencyConfig',  # Added currency app
     'api.v1.base_models.common.fileStorage.apps.FileStorageConfig', # Added fileStorage app
     'api.v1.base_models.contact.apps.ContactConfig',

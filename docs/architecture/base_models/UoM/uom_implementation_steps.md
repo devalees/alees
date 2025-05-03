@@ -229,7 +229,7 @@ Defines UoM types (Length, Mass) via `UomType` model and specific units (KG, M, 
 
 [ ] Run the *entire* test suite (`pytest`).
 [ ] Run linters (`flake8`) and formatters (`black`).
-[ ] Check code coverage (`pytest --cov=api/v1/base_models/common`).
+[ ] Check code coverage (`pytest --cov=api/v1/base_models/common/uom`).
 [ ] Manually test via API client and Django Admin. Verify initial data.
 [ ] Review API documentation draft.
 
