@@ -1,299 +1,236 @@
 
-
-# UnitOfMeasure (UoM) - Implementation Steps
+# UnitOfMeasure (UoM) System - Implementation Steps
 
 ## 1. Overview
 
-**Model Name:**
-`UnitOfMeasure`
+**Model Name(s):**
+`UomType`, `UnitOfMeasure`
 
 **Corresponding PRD:**
-`uom_prd.md` (Simplified version with Custom Fields)
+`uom_prd.md` (Revised - Using `UomType` Model)
 
 **Depends On:**
 `Timestamped`, `Auditable` (Abstract Base Models)
 
 **Key Features:**
-Defines distinct units of measure (e.g., KG, M, EA) with core attributes like code, name, type/category, symbol, active status, and custom fields. Serves as reference data for product/inventory/order models.
+Defines UoM types (Length, Mass) via `UomType` model and specific units (KG, M, EA) via `UnitOfMeasure` model linked to a type. Includes code, name, symbol, status, custom fields.
 
 **Primary Location(s):**
-`api/v1/base_models/common/` (Assuming `common` app for shared entities)
+`api/v1/base_models/common/uom/` (Assuming `common` app for shared entities)
 
 ## 2. Prerequisites
 
 [ ] Verify prerequisite models/mixins (`Timestamped`, `Auditable`) are implemented.
-[ ] Ensure the `common` app structure exists (`api/v1/base_models/common/`).
+[ ] Ensure the `common` app structure exists (`api/v1/base_models/common/uom/`).
 [ ] Ensure `factory-boy` is set up. Basic User factory exists.
-[ ] **Decision:** Define a list of standard `uom_type` choices (e.g., 'Length', 'Mass', 'Volume', 'Count', 'Time', 'Area') or create a separate `UomType` model? (Steps assume `CharField` with choices initially for simplicity).
 
 ## 3. Implementation Steps (TDD Workflow)
 
-  ### 3.1 Model Definition (`models.py`)
+  *(Implement UomType first, then UnitOfMeasure)*
 
-  [ ] **(Test First)**
-      Write **Unit Test(s)** (`tests/unit/test_models.py` in `common`) verifying:
-      *   A `UnitOfMeasure` instance can be created with required fields (`code`, `name`, `uom_type`).
-      *   `code` is the primary key.
-      *   Unique constraints (`code`, `name`) are present.
-      *   Default values (`is_active`, `custom_fields`) are set.
-      *   `__str__` method works as expected.
-      *   Inherited `Timestamped`/`Auditable` fields exist.
-      Run; expect failure (`UnitOfMeasure` doesn't exist).
-  [ ] Define the `UnitOfMeasure` class in `api/v1/base_models/common/models.py`.
-  [ ] Add required inheritance: `Timestamped`, `Auditable`.
+  ### 3.1 `UomType` Model Definition (`models.py`)
+
+  [ ] **(Test First)** Write Unit Tests (`tests/unit/test_models.py`) verifying: `UomType` creation (`code`, `name`), PK (`code`), uniqueness (`name`), defaults (`is_active`, `custom_fields`), inheritance, `__str__`.
+  [ ] Define `UomType` class in `api/v1/base_models/common/uom/models.py`. Inherit `Timestamped`, `Auditable`.
       ```python
-      # api/v1/base_models/common/models.py
-      from django.db import models
-      from django.utils.translation import gettext_lazy as _
-      from core.models import Timestamped, Auditable # Adjust import path
+      # api/v1/base_models/common/uom/models.py
+      # ... imports ...
+      class UomType(Timestamped, Auditable):
+          code = models.CharField( # Or SlugField
+              _("Code"), max_length=50, primary_key=True,
+              help_text=_("Unique code for the UoM Type (e.g., LENGTH, MASS).")
+          )
+          name = models.CharField(
+              _("Name"), max_length=100, unique=True, db_index=True,
+              help_text=_("Human-readable name (e.g., Length, Mass).")
+          )
+          description = models.TextField(_("Description"), blank=True)
+          is_active = models.BooleanField(_("Is Active"), default=True, db_index=True)
+          custom_fields = models.JSONField(_("Custom Fields"), default=dict, blank=True)
 
-      class UnitType: # Define choices centrally
-          LENGTH = 'Length'
-          MASS = 'Mass'
-          VOLUME = 'Volume'
-          COUNT = 'Count'
-          TIME = 'Time'
-          AREA = 'Area'
-          OTHER = 'Other'
+          class Meta:
+              verbose_name = _("Unit of Measure Type")
+              verbose_name_plural = _("Unit of Measure Types")
+              ordering = ['name']
 
-          CHOICES = [
-              (LENGTH, _('Length')),
-              (MASS, _('Mass')),
-              (VOLUME, _('Volume')),
-              (COUNT, _('Count/Each')),
-              (TIME, _('Time')),
-              (AREA, _('Area')),
-              (OTHER, _('Other')),
-          ]
+          def __str__(self): return self.name
+      ```
+  [ ] Run `UomType` tests; expect pass. Refactor.
 
+  ### 3.2 `UnitOfMeasure` Model Definition (`models.py`)
+
+  [ ] **(Test First)** Write Unit Tests (`tests/unit/test_models.py`) verifying: `UnitOfMeasure` creation (`code`, `name`, `uom_type` FK), PK (`code`), uniqueness (`name`), defaults (`is_active`, `custom_fields`), inheritance, `__str__`. Test FK link to `UomType`.
+  [ ] Define `UnitOfMeasure` class *after* `UomType` in `api/v1/base_models/common/uom/models.py`. Inherit `Timestamped`, `Auditable`. Add FK to `UomType`.
+      ```python
+      # api/v1/base_models/common/uom/models.py (continued)
       class UnitOfMeasure(Timestamped, Auditable):
           code = models.CharField(
-              _("Code"),
-              max_length=20, # Allow for codes like BOX_12, etc.
-              primary_key=True,
+              _("Code"), max_length=20, primary_key=True,
               help_text=_("Unique code for the unit (e.g., KG, M, EA, BOX_12).")
           )
           name = models.CharField(
-              _("Name"),
-              max_length=100,
-              unique=True,
-              db_index=True,
+              _("Name"), max_length=100, unique=True, db_index=True,
               help_text=_("Full name of the unit (e.g., Kilogram, Meter, Each).")
           )
-          uom_type = models.CharField(
-              _("Type"),
-              max_length=50,
-              choices=UnitType.CHOICES,
-              db_index=True,
+          uom_type = models.ForeignKey( # Changed from CharField
+              UomType,
+              verbose_name=_("Type"),
+              related_name='units',
+              on_delete=models.PROTECT, # Protect Type if Units reference it
               help_text=_("Category of measurement (e.g., Length, Mass, Count).")
           )
           symbol = models.CharField(
-              _("Symbol"),
-              max_length=10,
-              blank=True,
+              _("Symbol"), max_length=10, blank=True,
               help_text=_("Common symbol (e.g., kg, m, L).")
           )
-          is_active = models.BooleanField(
-              _("Is Active"),
-              default=True,
-              db_index=True,
-              help_text=_("Is this unit available for use?")
-          )
-          custom_fields = models.JSONField(
-              _("Custom Fields"),
-              default=dict,
-              blank=True,
-              help_text=_("Custom data associated with this unit definition.")
-          )
+          is_active = models.BooleanField(_("Is Active"), default=True, db_index=True)
+          custom_fields = models.JSONField(_("Custom Fields"), default=dict, blank=True)
 
           class Meta:
               verbose_name = _("Unit of Measure")
               verbose_name_plural = _("Units of Measure")
-              ordering = ['uom_type', 'name']
+              ordering = ['uom_type__name', 'name'] # Order by type name then unit name
 
-          def __str__(self):
-              return self.name # Or self.code
+          def __str__(self): return self.name
       ```
-  [ ] Run tests; expect pass. Refactor model code if needed.
+  [ ] Run `UnitOfMeasure` tests; expect pass. Refactor.
 
-  ### 3.2 Factory Definition (`tests/factories.py`)
+  ### 3.3 Factory Definitions (`tests/factories.py`)
 
-  [ ] Define `UnitOfMeasureFactory` in `api/v1/base_models/common/tests/factories.py`:
+  [ ] Define `UomTypeFactory`.
+  [ ] Define `UnitOfMeasureFactory`, ensuring `uom_type` uses `factory.SubFactory(UomTypeFactory)`.
       ```python
-      import factory
-      from factory.django import DjangoModelFactory
-      from ..models import UnitOfMeasure, UnitType # Import choices class too
+      # api/v1/base_models/common/uom/tests/factories.py
+      class UomTypeFactory(DjangoModelFactory):
+          class Meta: model = UomType; django_get_or_create = ('code',)
+          code = factory.Iterator(['LENGTH', 'MASS', 'COUNT', 'VOLUME', 'TIME'])
+          name = factory.LazyAttribute(lambda o: o.code.capitalize())
+          is_active = True
+          custom_fields = {}
 
       class UnitOfMeasureFactory(DjangoModelFactory):
-          class Meta:
-              model = UnitOfMeasure
-              django_get_or_create = ('code',)
-
-          # Create more realistic examples based on type
+          class Meta: model = UnitOfMeasure; django_get_or_create = ('code',)
           code = factory.Sequence(lambda n: f'UOM{n}')
           name = factory.Sequence(lambda n: f'Unit Name {n}')
-          uom_type = factory.Iterator([choice[0] for choice in UnitType.CHOICES])
+          uom_type = factory.SubFactory(UomTypeFactory) # Link to type factory
           symbol = factory.LazyAttribute(lambda o: o.code.lower())
           is_active = True
           custom_fields = {}
       ```
-  [ ] **(Test)** Write a simple test ensuring `UnitOfMeasureFactory` creates valid instances.
+  [ ] **(Test)** Write simple tests ensuring factories create valid instances and links.
 
-  ### 3.3 Admin Registration (`admin.py`)
+  ### 3.4 Admin Registration (`admin.py`)
 
-  [ ] Create/Update `api/v1/base_models/common/admin.py`.
-  [ ] Define `UnitOfMeasureAdmin`:
+  [ ] Create/Update `api/v1/base_models/common/uom/admin.py`.
+  [ ] Define `UomTypeAdmin`.
+  [ ] Define `UnitOfMeasureAdmin`. Use `list_select_related` for `uom_type`. Filter by `uom_type`.
       ```python
       from django.contrib import admin
-      from .models import UnitOfMeasure
+      from .models import UomType, UnitOfMeasure
+
+      @admin.register(UomType)
+      class UomTypeAdmin(admin.ModelAdmin):
+          list_display = ('code', 'name', 'is_active')
+          search_fields = ('code', 'name')
+          readonly_fields = ('created_at', 'created_by', 'updated_at', 'updated_by')
 
       @admin.register(UnitOfMeasure)
       class UnitOfMeasureAdmin(admin.ModelAdmin):
           list_display = ('code', 'name', 'uom_type', 'symbol', 'is_active', 'updated_at')
           search_fields = ('code', 'name', 'symbol')
-          list_filter = ('uom_type', 'is_active')
+          list_filter = ('uom_type', 'is_active') # Filter by related type
+          list_select_related = ('uom_type',) # Optimize list view query
           readonly_fields = ('created_at', 'created_by', 'updated_at', 'updated_by')
-          fieldsets = (
-              (None, {'fields': ('code', 'name', 'symbol', 'uom_type', 'is_active')}),
-              ('Custom Data', {'fields': ('custom_fields',)}),
-              ('Audit Info', {'classes': ('collapse',), 'fields': readonly_fields}),
-          )
+          autocomplete_fields = ['uom_type'] # If UomTypeAdmin registered
+          # ... fieldsets ...
       ```
-  [ ] **(Manual Test):** Verify registration and basic CRUD in Django Admin locally.
+  [ ] **(Manual Test):** Verify Admin interfaces for both models.
 
-  ### 3.4 Initial Data Population (Migration)
+  ### 3.5 Initial Data Population (Migration)
 
-  [ ] Create a new **Data Migration** file: `python manage.py makemigrations --empty --name populate_initial_uoms api.v1.base_models.common`.
-  [ ] Edit the generated migration file (`..._populate_initial_uoms.py`). Add `RunPython` operations to load essential common units.
-      ```python
-      from django.db import migrations
+  [ ] Create a new **Data Migration** file: `..._populate_initial_uom_types_and_uoms.py`.
+  [ ] Edit the migration file. Add `RunPython` operations to:
+      1.  Populate `UomType` records first (Length, Mass, Count, etc.).
+      2.  Populate `UnitOfMeasure` records, linking them to the correct `UomType` instances just created.
+      *(Modify the previous `populate_uoms` function to fetch/link the `UomType`)*.
 
-      INITIAL_UOMS = [
-          # Code, Name, Type, Symbol (Optional)
-          ('EA', 'Each', 'Count', ''),
-          ('BOX', 'Box', 'Count', ''),
-          ('KG', 'Kilogram', 'Mass', 'kg'),
-          ('G', 'Gram', 'Mass', 'g'),
-          ('LB', 'Pound', 'Mass', 'lb'),
-          ('OZ', 'Ounce', 'Mass', 'oz'),
-          ('M', 'Meter', 'Length', 'm'),
-          ('CM', 'Centimeter', 'Length', 'cm'),
-          ('MM', 'Millimeter', 'Length', 'mm'),
-          ('FT', 'Foot', 'Length', 'ft'),
-          ('IN', 'Inch', 'Length', 'in'),
-          ('L', 'Liter', 'Volume', 'L'),
-          ('ML', 'Milliliter', 'Volume', 'mL'),
-          ('GAL', 'Gallon', 'Volume', 'gal'),
-          # Add others (Area, Time, etc.) as needed
-      ]
-
-      def populate_uoms(apps, schema_editor):
-          UnitOfMeasure = apps.get_model('common', 'UnitOfMeasure')
-          UnitType = apps.get_model('common', 'UnitType') # Get choices if needed, or use strings directly
-          db_alias = schema_editor.connection.alias
-
-          uoms_to_add = []
-          for code, name, uom_type_str, symbol in INITIAL_UOMS:
-              # Find the correct type value if using choices class
-              uom_type_val = next((val for val, display in UnitType.CHOICES if val == uom_type_str), UnitType.OTHER)
-
-              uoms_to_add.append(
-                  UnitOfMeasure(
-                      code=code, name=name, uom_type=uom_type_val, symbol=symbol or ''
-                  )
-              )
-          UnitOfMeasure.objects.using(db_alias).bulk_create(uoms_to_add, ignore_conflicts=True)
-          print(f"\nPopulated/updated {len(uoms_to_add)} Units of Measure.")
-
-      def remove_uoms(apps, schema_editor):
-          pass
-
-      class Migration(migrations.Migration):
-          dependencies = [
-              ('common', '000X_auto_...'), # Depends on UoM model creation
-          ]
-          operations = [
-              migrations.RunPython(populate_uoms, reverse_code=remove_uoms),
-          ]
-      ```
-
-  ### 3.5 Migrations (Apply Initial Model & Data)
+  ### 3.6 Migrations (Apply Initial Models & Data)
 
   [ ] Run `python manage.py makemigrations api.v1.base_models.common`.
-  [ ] **Review generated migration file(s) carefully.**
+  [ ] **Review generated migration file(s) carefully.** Should include creation of `UomType`, `UnitOfMeasure`, and the data population.
   [ ] Run `python manage.py migrate` locally. Verify data loaded via Admin.
 
-  ### 3.6 Serializer Definition (`serializers.py`)
+  ### 3.7 Serializer Definition (`serializers.py`)
 
-  [ ] **(Test First)** Write Unit/Integration Tests (`tests/unit/test_serializers.py`, etc.) for `UnitOfMeasureSerializer`. Test representation, custom field handling.
-  [ ] Define `UnitOfMeasureSerializer` in `api/v1/base_models/common/serializers.py`:
+  [ ] **(Test First)** Write Tests for `UomTypeSerializer` and `UnitOfMeasureSerializer`. Test representation, relationship (`uom_type` in UoM serializer).
+  [ ] Define `UomTypeSerializer`.
+  [ ] Define `UnitOfMeasureSerializer`. Represent `uom_type` using `PrimaryKeyRelatedField` (or slug) or nested `UomTypeSerializer` for reads.
       ```python
-      from rest_framework import serializers
-      from ..models import UnitOfMeasure
+      # api/v1/base_models/common/uom/serializers.py
+      class UomTypeSerializer(serializers.ModelSerializer):
+          class Meta: model = UomType; fields = ['code', 'name', 'description', 'is_active', 'custom_fields']; read_only_fields = fields
 
       class UnitOfMeasureSerializer(serializers.ModelSerializer):
+          uom_type_details = UomTypeSerializer(source='uom_type', read_only=True) # Example nested read
+
           class Meta:
               model = UnitOfMeasure
               fields = [
-                  'code',
-                  'name',
-                  'uom_type',
-                  'symbol',
-                  'is_active',
-                  'custom_fields',
-                  # Include Timestamped/Auditable fields if needed
+                  'code', 'name', 'uom_type', # Write via PK (uom_type is FK)
+                  'uom_type_details', # Read nested
+                  'symbol', 'is_active', 'custom_fields',
               ]
-              # Generally read-only from an API perspective
-              read_only_fields = fields
+              read_only_fields = ('code', 'name', 'symbol', 'is_active', 'custom_fields', 'uom_type_details') # Typically read-only via API
+              # Add uom_type to read_only_fields if not allowing it to be set/changed via API
       ```
-  [ ] Implement `validate_custom_fields` if applicable.
+  [ ] Implement `validate_custom_fields` if needed.
   [ ] Run tests; expect pass. Refactor.
 
-  ### 3.7 API ViewSet Definition (`views.py`)
+  ### 3.8 API ViewSet Definition (`views.py`)
 
-  [ ] **(Test First)** Write basic API Tests (`tests/api/test_endpoints.py`) for `/api/v1/uoms/`. Test unauthenticated access (likely allowed for read).
-  [ ] Define `UnitOfMeasureViewSet` in `api/v1/base_models/common/views.py`:
+  [ ] **(Test First)** Write basic API Tests for `/api/v1/uom-types/` and `/api/v1/uoms/`. Test read access.
+  [ ] Define `UomTypeViewSet` (ReadOnly).
+  [ ] Define `UnitOfMeasureViewSet` (ReadOnly). Filter by `uom_type__code`.
       ```python
-      from rest_framework import viewsets, permissions
-      from rest_framework import filters
-      from ..models import UnitOfMeasure
-      from ..serializers import UnitOfMeasureSerializer
+      # api/v1/base_models/common/uom/views.py
+      # ... imports ...
+      class UomTypeViewSet(viewsets.ReadOnlyModelViewSet):
+          queryset = UomType.objects.filter(is_active=True)
+          serializer_class = UomTypeSerializer
+          permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+          lookup_field = 'code'
+          filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+          search_fields = ['code', 'name']
+          ordering_fields = ['name', 'code']
 
       class UnitOfMeasureViewSet(viewsets.ReadOnlyModelViewSet):
-          """
-          API endpoint allowing Units of Measure to be viewed.
-          Management is typically done via Admin or initial data loads.
-          """
-          queryset = UnitOfMeasure.objects.filter(is_active=True) # Show active only
+          queryset = UnitOfMeasure.objects.filter(is_active=True).select_related('uom_type')
           serializer_class = UnitOfMeasureSerializer
           permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-          lookup_field = 'code' # Use code (PK) for retrieval
-          filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-          search_fields = ['code', 'name', 'symbol', 'uom_type']
-          ordering_fields = ['uom_type', 'name', 'code']
-          # pagination_class = None # Optional: Disable pagination if list is manageable
+          lookup_field = 'code'
+          filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+          filterset_fields = ['uom_type__code'] # Filter by type code
+          search_fields = ['code', 'name', 'symbol', 'uom_type__name']
+          ordering_fields = ['uom_type__name', 'name', 'code']
       ```
   [ ] Run basic tests; expect pass. Refactor.
 
-  ### 3.8 URL Routing (`urls.py`)
+  ### 3.9 URL Routing (`urls.py`)
 
-  [ ] Import `UnitOfMeasureViewSet` in `api/v1/base_models/common/urls.py`.
-  [ ] Register with router: `router.register(r'uoms', views.UnitOfMeasureViewSet)`.
-  [ ] **(Test):** Rerun basic API tests; expect 200 OK for listing/retrieving.
+  [ ] Import and register both `UomTypeViewSet` and `UnitOfMeasureViewSet` with the router in `common/urls.py`.
+  [ ] **(Test):** Rerun basic API tests; expect 200 OK for both endpoints.
 
-  ### 3.9 API Endpoint Testing (`tests/api/test_endpoints.py`)
+  ### 3.10 API Endpoint Testing (`tests/api/test_endpoints.py`)
 
-  [ ] **(Test First - List/Retrieve)** Write tests for `GET /api/v1/uoms/` and `GET /api/v1/uoms/{code}/`. Assert 200, check structure, verify initial UoMs present. Test search filters.
-  [ ] Ensure ViewSet query/filtering works.
+  [ ] **(Test First)** Write LIST/RETRIEVE tests for `/uom-types/` and `/uoms/`. Test filtering UoMs by `uom_type__code`. Test search.
   [ ] Run list/retrieve tests; expect pass. Refactor.
-  [ ] *(Test custom field validation/saving via API if management endpoints were added)*.
 
 ## 4. Final Checks
 
 [ ] Run the *entire* test suite (`pytest`).
 [ ] Run linters (`flake8`) and formatters (`black`).
-[ ] Check code coverage (`pytest --cov=api/v1/base_models/common`). Review uncovered lines.
-[ ] Manually test via API client and Django Admin. Verify initial UoMs exist.
+[ ] Check code coverage (`pytest --cov=api/v1/base_models/common`).
+[ ] Manually test via API client and Django Admin. Verify initial data.
 [ ] Review API documentation draft.
 
 ## 5. Follow-up Actions
@@ -301,7 +238,7 @@ Defines distinct units of measure (e.g., KG, M, EA) with core attributes like co
 [ ] Address TODOs.
 [ ] Create Pull Request.
 [ ] Update API documentation.
-[ ] Ensure models needing a UoM reference (e.g., Product) add the `ForeignKey` correctly using `on_delete=PROTECT`.
-[ ] Plan for implementation of the separate Unit Conversion mechanism/library integration.
+[ ] Ensure models needing a UoM reference (e.g., Product) add the `ForeignKey` to `UnitOfMeasure` correctly.
+[ ] Plan for implementation of the separate Unit Conversion mechanism.
 
---- END OF FILE uom_implementation_steps.md ---
+---
