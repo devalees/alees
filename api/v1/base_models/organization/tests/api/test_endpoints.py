@@ -402,6 +402,13 @@ class TestOrganizationViewSet:
         assert response.status_code == status.HTTP_204_NO_CONTENT
         assert not Organization.objects.filter(id=organization.id).exists()
 
+        # --- AuditLog Cleanup ---
+        # Manually delete audit logs related to this organization to prevent
+        # IntegrityError during test teardown.
+        from core.audit.models import AuditLog # Import here to avoid circularity at module level
+        AuditLog.objects.filter(organization_id=organization.id).delete()
+        # --- End AuditLog Cleanup ---
+
     def test_hierarchy_actions(self, api_client, detail_url, organization, user):
         """Test hierarchy-related actions"""
         # Add view permission

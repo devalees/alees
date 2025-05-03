@@ -41,6 +41,7 @@ LOCAL_APPS = [
     'api.v1.base_models.contact.apps.ContactConfig',
     'api.v1.base_models.organization.apps.OrganizationConfig',
     'api.v1.base_models.user.apps.UserConfig',
+    'core.audit.apps.AuditConfig', # Added Audit app
     # Add other apps AppConfig paths here...
     # 'api.v1.features.products.apps.ProductsConfig', # Example
 ]

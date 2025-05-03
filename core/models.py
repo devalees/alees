@@ -71,10 +71,12 @@ class Auditable(models.Model):
     def save(self, *args, **kwargs):
         """Override save to set created_by and updated_by."""
         user = get_current_user()
-        if user and not user.pk:
-            # User object might exist but not be saved yet (e.g., during tests)
-            # Or user might be AnonymousUser which doesn't have pk
-            user = None
+
+        # Ensure user is a valid, saved User instance, not Mock or AnonymousUser
+        is_valid_user = user and isinstance(user, User) and user.pk
+
+        if not is_valid_user:
+            user = None # Treat invalid/mock/anonymous users as None
 
         # Set created_by only on first save (when pk is None)
         if self.pk is None and user:
