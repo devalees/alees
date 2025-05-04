@@ -1,5 +1,6 @@
 import django_filters
 from django.db.models import Q
+from taggit.models import Tag
 
 from api.v1.base_models.contact.models import Contact
 from api.v1.base_models.contact.choices import ContactType, ContactStatus, ContactSource
@@ -18,12 +19,17 @@ class ContactFilter(django_filters.FilterSet):
         lookup_expr='isnull',
         exclude=True
     )
+    tags = django_filters.ModelMultipleChoiceFilter(
+        queryset=Tag.objects.all(),
+        label='Tags (by PK)'
+    )
 
     class Meta:
         model = Contact
         fields = [
             'first_name', 'last_name', 'contact_type',
-            'status', 'source', 'has_organization'
+            'status', 'source', 'has_organization',
+            'tags'
         ]
 
     def search_filter(self, queryset, name, value):

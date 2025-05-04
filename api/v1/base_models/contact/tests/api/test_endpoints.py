@@ -17,6 +17,7 @@ from api.v1.base_models.contact.tests.factories import (
     ContactAddressFactory
 )
 from api.v1.base_models.organization.tests.factories import OrganizationFactory, OrganizationMembershipFactory
+from api.v1.base_models.common.tag.tests.factories import TagFactory
 
 User = get_user_model()
 
@@ -205,3 +206,102 @@ class TestContactAPI:
         contact = Contact.objects.get(pk=response.data['id'])
         assert contact.custom_fields['priority'] == 'high'
         assert 'customer' in [tag.name for tag in contact.tags.all()] 
+
+    # --- Tag Filtering Tests ---
+    # Ensure user has view permissions within the org for these tests
+
+    def test_filter_contacts_by_single_tag(self, authenticated_client, test_user, test_organization, list_create_url):
+        """Test filtering contacts by a single tag PK."""
+        view_role = add_perms_to_role("Viewer", ["view_contact"])
+        OrganizationMembershipFactory(user=test_user, organization=test_organization, role=view_role)
+
+        # Create tags
+        lead_tag = TagFactory(name="lead")
+        important_tag = TagFactory(name="important")
+        customer_tag = TagFactory(name="customer")
+
+        contact1 = ContactFactory(organization=test_organization)
+        contact1.tags.add(lead_tag, important_tag)
+        contact2 = ContactFactory(organization=test_organization)
+        contact2.tags.add(customer_tag, important_tag)
+        contact3 = ContactFactory(organization=test_organization) # No tags
+
+        # Filter by lead_tag PK
+        response = authenticated_client.get(list_create_url, {'tags': [lead_tag.pk]})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['count'] == 1
+        assert response.data['results'][0]['id'] == contact1.id
+
+    def test_filter_contacts_by_multiple_tags(self, authenticated_client, test_user, test_organization, list_create_url):
+        """Test filtering contacts by multiple tag PKs (OR)."""
+        view_role = add_perms_to_role("Viewer", ["view_contact"])
+        OrganizationMembershipFactory(user=test_user, organization=test_organization, role=view_role)
+
+        # Create tags
+        lead_tag = TagFactory(name="lead")
+        vip_tag = TagFactory(name="vip")
+        customer_tag = TagFactory(name="customer")
+        prospect_tag = TagFactory(name="prospect")
+
+        contact1 = ContactFactory(organization=test_organization)
+        contact1.tags.add(lead_tag)
+        contact2 = ContactFactory(organization=test_organization)
+        contact2.tags.add(customer_tag, vip_tag)
+        contact3 = ContactFactory(organization=test_organization)
+        contact3.tags.add(prospect_tag)
+
+        # Filter by lead_tag PK OR vip_tag PK
+        response = authenticated_client.get(list_create_url, {'tags': [lead_tag.pk, vip_tag.pk]})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['count'] == 2
+        result_ids = sorted([item['id'] for item in response.data['results']])
+        assert result_ids == sorted([contact1.id, contact2.id])
+
+    def test_filter_contacts_by_common_tag(self, authenticated_client, test_user, test_organization, list_create_url):
+        """Test filtering contacts by a tag PK shared by multiple contacts."""
+        view_role = add_perms_to_role("Viewer", ["view_contact"])
+        OrganizationMembershipFactory(user=test_user, organization=test_organization, role=view_role)
+
+        # Create tags
+        important_tag = TagFactory(name="important")
+        lead_tag = TagFactory(name="lead")
+        customer_tag = TagFactory(name="customer")
+        prospect_tag = TagFactory(name="prospect")
+
+        contact1 = ContactFactory(organization=test_organization)
+        contact1.tags.add(lead_tag, important_tag)
+        contact2 = ContactFactory(organization=test_organization)
+        contact2.tags.add(customer_tag, important_tag)
+        contact3 = ContactFactory(organization=test_organization)
+        contact3.tags.add(prospect_tag)
+
+        # Filter by important_tag PK
+        response = authenticated_client.get(list_create_url, {'tags': [important_tag.pk]})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['count'] == 2
+        result_ids = sorted([item['id'] for item in response.data['results']])
+        assert result_ids == sorted([contact1.id, contact2.id])
+
+    def test_filter_contacts_by_nonexistent_tag_pk(self, authenticated_client, test_user, test_organization, list_create_url):
+        """Test filtering contacts by a tag PK that doesn't exist."""
+        view_role = add_perms_to_role("Viewer", ["view_contact"])
+        OrganizationMembershipFactory(user=test_user, organization=test_organization, role=view_role)
+
+        # Create a contact with a valid tag
+        existing_tag = TagFactory(name="existing_tag")
+        ContactFactory(organization=test_organization).tags.add(existing_tag)
+
+        # Use a PK that is unlikely to exist (e.g., 99999)
+        nonexistent_pk = 99999
+        response = authenticated_client.get(list_create_url, {'tags': [nonexistent_pk]})
+
+        # ModelMultipleChoiceFilter validates input PKs against its queryset.
+        # Passing a non-existent PK correctly results in a 400 Bad Request.
+        # Update assertion to expect 400.
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        # Optional: Check error message structure if needed
+        # assert 'tags' in response.data
+        # assert 'Select a valid choice' in str(response.data['tags']) 

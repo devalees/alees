@@ -15,6 +15,7 @@ from api.v1.base_models.contact.choices import (
 )
 
 import logging
+from django.db import transaction
 
 User = get_user_model()
 
@@ -261,7 +262,11 @@ class ContactSerializer(TaggitSerializer, serializers.ModelSerializer):
         allow_null=False
     )
 
-    tags = TagListSerializerField(required=False) # Restore tags field
+    tags = TagListSerializerField(required=False)
+
+    # Read-only fields for displaying created/updated by user info
+    created_by_username = serializers.SerializerMethodField()
+    updated_by_username = serializers.SerializerMethodField()
 
     def validate(self, attrs):
         """Validate the contact data."""
@@ -287,97 +292,94 @@ class ContactSerializer(TaggitSerializer, serializers.ModelSerializer):
         logger.info("Contact validation completed successfully.")
         return attrs
 
+    @transaction.atomic
     def create(self, validated_data):
-        """Create a new contact and handle nested objects."""
+        """Handle creation of Contact and nested related objects."""
         emails_data = validated_data.pop('email_addresses', [])
         phones_data = validated_data.pop('phone_numbers', [])
         addresses_data = validated_data.pop('addresses', [])
-        tags_data = validated_data.pop('tags', [])
+        # TaggitSerializer handles popping 'tags' automatically
 
-        contact = Contact.objects.create(**validated_data)
-        
-        if tags_data:
-            contact.tags.set(tags_data)
+        # Create the main Contact instance first
+        contact = super().create(validated_data)
 
-        self._update_nested_objects(contact, 'email_addresses', emails_data, ContactEmailAddressSerializer)
-        self._update_nested_objects(contact, 'phone_numbers', phones_data, ContactPhoneNumberSerializer)
-        self._update_nested_objects(contact, 'addresses', addresses_data, ContactAddressSerializer)
+        # Now create related objects, passing the contact instance in context
+        context = {'contact': contact}
+        for email_data in emails_data:
+            # Initialize nested serializer with context, then save
+            email_serializer = ContactEmailAddressSerializer(data=email_data, context=context)
+            if email_serializer.is_valid(raise_exception=True):
+                email_serializer.save() # .save() calls .create() internally
+
+        for phone_data in phones_data:
+            phone_serializer = ContactPhoneNumberSerializer(data=phone_data, context=context)
+            if phone_serializer.is_valid(raise_exception=True):
+                phone_serializer.save()
+
+        for address_data in addresses_data:
+            address_serializer = ContactAddressSerializer(data=address_data, context=context)
+            if address_serializer.is_valid(raise_exception=True):
+                address_serializer.save()
+
+        # Tags are handled automatically by TaggitSerializer.save()
 
         return contact
 
+    @transaction.atomic
     def update(self, instance, validated_data):
-        """Update a contact instance and handle nested objects."""
+        """Handle update of Contact and nested related objects."""
         emails_data = validated_data.pop('email_addresses', None)
         phones_data = validated_data.pop('phone_numbers', None)
         addresses_data = validated_data.pop('addresses', None)
-        tags_data = validated_data.pop('tags', None)
+        # TaggitSerializer handles popping 'tags' automatically
 
-        instance = super().update(instance, validated_data)
+        # Update the main Contact instance
+        contact = super().update(instance, validated_data)
 
-        if tags_data is not None: 
-            instance.tags.set(tags_data)
+        # Handle updates/creates/deletes for related objects
+        if emails_data is not None:
+            self._update_nested_related(contact, emails_data, ContactEmailAddressSerializer, contact.email_addresses)
+        if phones_data is not None:
+            self._update_nested_related(contact, phones_data, ContactPhoneNumberSerializer, contact.phone_numbers)
+        if addresses_data is not None:
+            self._update_nested_related(contact, addresses_data, ContactAddressSerializer, contact.addresses)
 
-        if emails_data: 
-            self._update_nested_objects(instance, 'email_addresses', emails_data, ContactEmailAddressSerializer)
-        
-        if phones_data:
-            self._update_nested_objects(instance, 'phone_numbers', phones_data, ContactPhoneNumberSerializer)
+        # Tags are handled automatically by TaggitSerializer.save()
 
-        if addresses_data:
-            self._update_nested_objects(instance, 'addresses', addresses_data, ContactAddressSerializer)
+        return contact
 
-        return instance
-
-    # --- HELPER METHOD FOR NESTED WRITES ---
-    def _update_nested_objects(self, instance, field_name, objects_data, serializer_class):
-        """
-        Handles create/update/delete for nested objects.
-        Assumes the parent instance (`instance`) is already saved.
-        """
-        logger.info(f"[_update_nested] START: Contact {instance.id}, Field: {field_name}, Data Count: {len(objects_data)}")
-        manager = getattr(instance, field_name) # e.g., instance.email_addresses
-        existing_ids = set(manager.values_list('id', flat=True))
+    def _update_nested_related(self, contact, related_data_list, RelatedSerializer, related_manager):
+        """Helper to create/update/delete nested related objects."""
+        existing_ids = set(related_manager.values_list('id', flat=True))
         updated_ids = set()
+        context = {'contact': contact}
 
-        for item_data in objects_data:
+        for item_data in related_data_list:
             item_id = item_data.get('id')
-            logger.info(f"[_update_nested] Processing item: {item_data}")
             if item_id:
-                logger.info(f"[_update_nested] Updating {field_name} item ID {item_id}")
-                item_instance = manager.get(id=item_id)
-                serializer = serializer_class(item_instance, data=item_data, partial=True, context={'contact': instance})
-                if serializer.is_valid(raise_exception=True):
-                    serializer.save()
-                    updated_ids.add(item_id)
-                    logger.info(f"[_update_nested] Update successful for ID {item_id}")
+                if item_id in existing_ids:
+                    # Update existing item
+                    instance = related_manager.get(id=item_id)
+                    serializer = RelatedSerializer(instance, data=item_data, partial=True, context=context)
+                    if serializer.is_valid(raise_exception=True):
+                        serializer.save()
+                        updated_ids.add(item_id)
                 else:
-                    logger.error(f"[_update_nested] Validation failed for new {field_name} item: {serializer.errors}")
+                    # ID provided but doesn't belong to this contact or doesn't exist - error
+                    logger.warning(f"Attempted to update related item with invalid ID {item_id} for {contact}")
+                    # Optionally raise ValidationError or just skip
+                    pass
             else:
-                logger.info(f"[_update_nested] Creating new {field_name} item")
-                serializer = serializer_class(data=item_data, context={'contact': instance})
+                # Create new item
+                serializer = RelatedSerializer(data=item_data, context=context)
                 if serializer.is_valid(raise_exception=True):
-                    try:
-                        # Rely *only* on context for create, do not pass contact kwarg
-                        nested_instance = serializer.save()
-                        if hasattr(nested_instance, 'id'):
-                            updated_ids.add(nested_instance.id)
-                            logger.info(f"[_update_nested] Creation successful, new ID: {nested_instance.id}")
-                        else:
-                            logger.error(f"[_update_nested] Failed to get ID for newly created {field_name} item.")
-                    except Exception as e:
-                        logger.error(f"[_update_nested] Error saving nested {field_name}: {e}", exc_info=True)
-                        raise
-                else:
-                    logger.error(f"[_update_nested] Validation failed for new {field_name} item: {serializer.errors}")
+                    new_instance = serializer.save() # create() in nested serializer uses context
+                    updated_ids.add(new_instance.id)
 
-        # Delete items not included in the update (optional, depends on desired PATCH behavior)
+        # Delete items not present in the update
         ids_to_delete = existing_ids - updated_ids
         if ids_to_delete:
-            logger.info(f"[_update_nested] Deleting {field_name} items: {ids_to_delete}")
-            manager.filter(id__in=ids_to_delete).delete()
-        logger.info(f"[_update_nested] END: Contact {instance.id}, Field: {field_name}")
-
-    # --- END HELPER ---
+            related_manager.filter(id__in=ids_to_delete).delete()
 
     def to_representation(self, instance):
         """Ensure nested fields are represented correctly."""
@@ -398,9 +400,11 @@ class ContactSerializer(TaggitSerializer, serializers.ModelSerializer):
             'contact_type', 'status', 'source', 'notes', 'tags', 
             'custom_fields',
             'email_addresses', 'phone_numbers', 'addresses',
-            'created_at', 'updated_at'
+            'created_at', 'updated_at', 'created_by', 'updated_by',
+            'created_by_username', 'updated_by_username'
         ]
-        read_only_fields = ['id', 'organization', 'created_at', 'updated_at'] 
+        read_only_fields = ['id', 'organization', 'created_at', 'updated_at', 'created_by', 'updated_by',
+                            'created_by_username', 'updated_by_username'] 
 
     def _validate_primary_flags(self, items, field_name):
         """Helper to ensure only one item is marked as primary."""
@@ -409,3 +413,9 @@ class ContactSerializer(TaggitSerializer, serializers.ModelSerializer):
             raise serializers.ValidationError({
                 field_name: f"Only one {field_name.replace('_', ' ')} can be marked as primary."
             })
+
+    def get_created_by_username(self, obj):
+        return obj.created_by.username if obj.created_by else None
+
+    def get_updated_by_username(self, obj):
+        return obj.updated_by.username if obj.updated_by else None

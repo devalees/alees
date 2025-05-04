@@ -5,6 +5,7 @@ from taggit.models import Tag
 from django.test import TestCase
 from rest_framework import serializers
 from taggit.serializers import TaggitSerializer, TagListSerializerField
+from unittest.mock import patch, MagicMock
 
 from api.v1.base_models.contact.serializers import (
     ContactEmailAddressSerializer,
@@ -26,8 +27,11 @@ from api.v1.base_models.contact.tests.factories import (
 from api.v1.base_models.common.address.tests.factories import AddressFactory
 from api.v1.base_models.organization.tests.factories import OrganizationFactory
 from api.v1.base_models.organization.models import Organization
+from api.v1.base_models.common.address.serializers import AddressSerializer
 
 User = get_user_model()
+
+pytestmark = pytest.mark.django_db
 
 @pytest.mark.django_db
 class TestContactEmailAddressSerializer:
@@ -221,3 +225,123 @@ class TestContactSerializer(TestCase):
         serializer = ContactSerializer(data=valid_data_no_org)
         self.assertFalse(serializer.is_valid())
         self.assertIn('organization_id', serializer.errors) 
+
+def test_contact_serializer_tags_read():
+    """Test ContactSerializer correctly serializes tags."""
+    organization = OrganizationFactory()
+    contact = ContactFactory(organization=organization)
+    contact.tags.add("lead", "hot")
+    contact.save()
+    contact.refresh_from_db()
+
+    serializer = ContactSerializer(instance=contact)
+    data = serializer.data
+
+    assert 'tags' in data
+    assert isinstance(data['tags'], list)
+    assert sorted(data['tags']) == sorted(["lead", "hot"])
+
+def test_contact_serializer_tags_create():
+    """Test ContactSerializer correctly handles tags on create."""
+    organization = OrganizationFactory()
+    contact_data = {
+        "first_name": "Taggy",
+        "last_name": "McTagface",
+        "organization_id": organization.pk,
+        "contact_type": ContactType.PRIMARY,
+        "status": ContactStatus.ACTIVE,
+        "source": ContactSource.WEBSITE,
+        "tags": ["new_lead", "urgent"]
+    }
+
+    serializer = ContactSerializer(data=contact_data)
+    assert serializer.is_valid(), serializer.errors
+    instance = serializer.save()
+
+    assert Contact.objects.count() == 1
+    assert instance.first_name == "Taggy"
+    assert instance.organization == organization
+
+    instance.refresh_from_db()
+    assert instance.tags.count() == 2
+    tag_names = sorted([tag.name for tag in instance.tags.all()])
+    assert tag_names == sorted(["new_lead", "urgent"])
+
+def test_contact_serializer_tags_update():
+    """Test ContactSerializer correctly handles tags on update."""
+    organization = OrganizationFactory()
+    contact = ContactFactory(organization=organization)
+    contact.tags.add("initial_tag")
+    contact.save()
+    assert contact.tags.count() == 1
+
+    update_data = {
+        "first_name": contact.first_name,
+        "last_name": contact.last_name,
+        "organization_id": organization.pk,
+        "tags": ["updated_tag", "another_tag"]
+    }
+
+    serializer = ContactSerializer(instance=contact, data=update_data, partial=True)
+    assert serializer.is_valid(), serializer.errors
+    instance = serializer.save()
+
+    instance.refresh_from_db()
+    assert instance.tags.count() == 2
+    tag_names = sorted([tag.name for tag in instance.tags.all()])
+    assert tag_names == sorted(["updated_tag", "another_tag"])
+
+def test_contact_serializer_tags_update_empty():
+    """Test ContactSerializer correctly removes all tags when passed an empty list."""
+    organization = OrganizationFactory()
+    contact = ContactFactory(organization=organization)
+    contact.tags.add("tag_to_remove")
+    contact.save()
+    assert contact.tags.count() == 1
+
+    update_data = {
+        "organization_id": organization.pk,
+        "tags": []
+    }
+
+    serializer = ContactSerializer(instance=contact, data=update_data, partial=True)
+    assert serializer.is_valid(), serializer.errors
+    instance = serializer.save()
+
+    instance.refresh_from_db()
+    assert instance.tags.count() == 0
+
+def test_contact_serializer_tags_not_required():
+    """Test ContactSerializer does not require tags field."""
+    organization = OrganizationFactory()
+    contact_data = {
+        "first_name": "NoTags",
+        "last_name": "Contact",
+        "organization_id": organization.pk,
+        "contact_type": ContactType.PRIMARY,
+        "status": ContactStatus.ACTIVE,
+        "source": ContactSource.REFERRAL,
+    }
+
+    # Test create
+    serializer_create = ContactSerializer(data=contact_data)
+    assert serializer_create.is_valid(), serializer_create.errors
+    instance_create = serializer_create.save()
+    instance_create.refresh_from_db()
+    assert instance_create.tags.count() == 0
+
+    # Test update (partial)
+    organization2 = OrganizationFactory()
+    contact = ContactFactory(organization=organization2)
+    contact.tags.add("existing")
+    contact.save()
+    update_data = {
+        "first_name": "StillNoTags",
+        "organization_id": organization2.pk
+    }
+    serializer_update = ContactSerializer(instance=contact, data=update_data, partial=True)
+    assert serializer_update.is_valid(), serializer_update.errors
+    instance_update = serializer_update.save()
+    instance_update.refresh_from_db()
+    assert instance_update.tags.count() == 1
+    assert instance_update.tags.first().name == "existing" 
