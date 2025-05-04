@@ -7,7 +7,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from django_otp.plugins.otp_totp.models import TOTPDevice
-from .serializers import TOTPVerifySerializer, PasswordChangeSerializer
+from .serializers import (
+    TOTPVerifySerializer, PasswordChangeSerializer, CustomTokenObtainPairSerializer
+)
 from .permissions import IsAuthenticatedOrHasAPIKey
 import qrcode
 import qrcode.image.svg
@@ -21,9 +23,9 @@ User = get_user_model()
 class CustomTokenObtainPairView(TokenObtainPairView):
     """
     Custom view for obtaining JWT token pair.
-    Extends the default TokenObtainPairView to allow for future customization.
+    Uses CustomTokenObtainPairSerializer to populate RBAC cache on login.
     """
-    pass
+    serializer_class = CustomTokenObtainPairSerializer
 
 class CustomTokenRefreshView(TokenRefreshView):
     """

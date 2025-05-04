@@ -4,13 +4,64 @@ from rest_framework_simplejwt.serializers import (
 )
 from rest_framework import serializers
 from django_otp.plugins.otp_totp.models import TOTPDevice
+from django.core.cache import cache, caches # Import cache
+from django.conf import settings # Import settings
+from django.apps import apps # Import apps
+import logging # Import logging
+
+logger = logging.getLogger(__name__)
+permission_cache = caches['rbac']
+CACHE_TIMEOUT = settings.RBAC_CACHE_TIMEOUT if hasattr(settings, 'RBAC_CACHE_TIMEOUT') else 3600
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """
     Custom serializer for obtaining JWT token pair.
-    Extends the default TokenObtainPairSerializer to allow for future customization.
+    Extends the default to populate RBAC cache on successful login.
     """
-    pass
+
+    # Override validate or get_token. get_token is called after validation.
+    def validate(self, attrs):
+        # First, call the parent's validate method to perform standard auth checks
+        data = super().validate(attrs)
+
+        # If authentication was successful, self.user will be set.
+        # Now, populate the RBAC cache.
+        user = self.user
+        if user and user.is_authenticated:
+            logger.info(f"Populating RBAC cache for user {user.pk} on login.")
+            try:
+                # 1. Cache Active Organization IDs
+                if not hasattr(user, 'get_organizations'):
+                    logger.error(f"User model missing 'get_organizations' method. Cannot populate RBAC cache.")
+                else:
+                    active_orgs = user.get_organizations() # Assumes this filters for active
+                    active_org_ids = list(active_orgs.values_list('pk', flat=True))
+                    org_ids_cache_key = f'user:{user.pk}:active_org_ids'
+                    cache.set(org_ids_cache_key, active_org_ids, timeout=CACHE_TIMEOUT)
+                    logger.info(f"Cached active_org_ids for user {user.pk}: {active_org_ids}")
+
+                    # 2. Pre-warm Permission Cache per Active Organization
+                    OrganizationMembership = apps.get_model('api_v1_organization', 'OrganizationMembership')
+                    memberships = OrganizationMembership.objects.filter(
+                        user=user,
+                        organization_id__in=active_org_ids, # Only fetch for active orgs
+                        is_active=True # Explicitly ensure membership is active
+                    ).select_related('role').prefetch_related('role__permissions')
+
+                    for membership in memberships:
+                        org_id = membership.organization_id
+                        perms_set = set()
+                        if membership.role:
+                            perms_set = set(membership.role.permissions.values_list('codename', flat=True))
+                        perm_cache_key = f'rbac:perms:user:{user.pk}:org:{org_id}'
+                        permission_cache.set(perm_cache_key, perms_set, timeout=CACHE_TIMEOUT)
+                        logger.info(f"Cached permissions for user {user.pk}, org {org_id}: {perms_set}")
+
+            except Exception as e:
+                # Log error but don't prevent login if caching fails
+                logger.error(f"Failed to populate RBAC cache for user {user.pk} during login: {e}", exc_info=True)
+
+        return data # Return the original token data
 
 class CustomTokenRefreshSerializer(TokenRefreshSerializer):
     """
