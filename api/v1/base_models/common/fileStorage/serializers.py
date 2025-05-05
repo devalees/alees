@@ -27,7 +27,8 @@ class FileUploadSerializer(serializers.ModelSerializer):
     # We need to accept organization ID during upload
     organization = serializers.PrimaryKeyRelatedField(
         queryset=Organization.objects.all(), 
-        write_only=True # Usually we don't show the full org details on upload response
+        write_only=True, # Usually we don't show the full org details on upload response
+        required=False   # Make it optional for single-organization users
     )
     file = serializers.FileField(write_only=True, required=True)
 

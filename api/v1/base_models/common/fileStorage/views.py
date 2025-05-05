@@ -90,10 +90,26 @@ class FileUploadView(generics.CreateAPIView):
         # Get the target organization from the validated data
         organization = serializer.validated_data.get('organization')
         
+        # If organization is not provided, try to determine it from user context
         if not organization:
-            # Handle case where organization wasn't provided or validated
-            # This depends on whether organization is required in FileUploadSerializer
-            raise PermissionDenied(_("Organization must be specified for upload."))
+            from core.rbac.utils import get_user_request_context
+            
+            # Get user's active organizations
+            active_org_ids, is_single_org = get_user_request_context(user)
+            
+            if not active_org_ids:
+                raise PermissionDenied(_("You do not belong to any active organizations."))
+            
+            # For single-org users: use their only organization
+            if is_single_org:
+                try:
+                    organization = Organization.objects.get(pk=active_org_ids[0])
+                    serializer.validated_data['organization'] = organization
+                except Organization.DoesNotExist:
+                    raise PermissionDenied(_("Your organization could not be found."))
+            else:
+                # Multi-org users must explicitly specify an organization
+                raise PermissionDenied(_("Organization must be specified for upload when you belong to multiple organizations."))
 
         # --- Organization-Aware Permission Check --- 
         perm_code = 'file_storage.add_filestorage' # Use the correct permission codename

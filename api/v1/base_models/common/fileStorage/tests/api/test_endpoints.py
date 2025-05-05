@@ -5,6 +5,7 @@ from rest_framework.test import APIClient
 from django.core.files.uploadedfile import SimpleUploadedFile
 from unittest.mock import patch
 from django.db.models.fields.files import FieldFile # Import the class to patch
+import os
 
 # Assuming models, factories, and helpers are correctly located
 from api.v1.base_models.common.fileStorage.models import FileStorage
@@ -139,20 +140,106 @@ class TestFileUploadView:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert 'file' in response.data # Check for specific field error
 
-    def test_upload_missing_organization(self, api_client, user_in_org, upload_url, test_file):
-        """Test file upload fails if 'organization' is missing (if required by view)."""
-        user, role = user_in_org # Unpack user and role
+    def test_upload_missing_organization(self, api_client, user_in_org, organization, upload_url, test_file):
+        """Test upload when organization field is missing."""
+        user, role = user_in_org  # Unpack user and role
+        # Assign permission to the role
         perm = get_permission(FileStorage, 'add_filestorage')
-        role.permissions.add(perm) # Assign to role
+        role.permissions.add(perm)
         api_client.force_authenticate(user=user)
-
+        
+        # Data for the POST request - omit organization field
         data = {
             'file': test_file
         }
-        response = api_client.post(upload_url, data, format='multipart')
-        # This might be 400 or 403 depending on how the view handles org determination
-        assert response.status_code in [status.HTTP_400_BAD_REQUEST, status.HTTP_403_FORBIDDEN]
-        # Add assertion for specific error message if needed
+
+        # Count initial number of FileStorage objects
+        initial_count = FileStorage.objects.count()
+
+        # Mock the get_user_request_context to simulate single-org user
+        with patch('core.rbac.utils.get_user_request_context') as mock_get_context:
+            # Return single organization ID and True for is_single_org
+            mock_get_context.return_value = ([organization.id], True)
+            response = api_client.post(upload_url, data, format='multipart')
+
+        # For single-org users, request should succeed without requiring organization
+        assert response.status_code == status.HTTP_201_CREATED
+        # A file was uploaded
+        assert FileStorage.objects.count() == initial_count + 1
+        # Check that the file is correctly associated with the user's organization
+        uploaded_file = FileStorage.objects.latest('id')
+        assert uploaded_file.organization.id == organization.id
+        assert uploaded_file.uploaded_by == user
+
+        # Clean up storage if needed
+        if os.path.exists(uploaded_file.file.path):
+            os.remove(uploaded_file.file.path)
+
+    def test_upload_success_single_org_user_no_org(self, api_client, user_in_org, organization, upload_url, test_file):
+        """Test successful file upload without specifying organization for single-org user."""
+        user, role = user_in_org  # Unpack user and role
+        # Assign permission to the role
+        perm = get_permission(FileStorage, 'add_filestorage')
+        role.permissions.add(perm)
+        api_client.force_authenticate(user=user)
+        
+        # Data for the POST request - omit organization field for single-org user
+        data = {
+            'file': test_file
+        }
+
+        initial_count = FileStorage.objects.count()
+        
+        # Mock the get_user_request_context to ensure single-org behavior
+        with patch('core.rbac.utils.get_user_request_context') as mock_get_context:
+            # Return the organization ID and True for is_single_org
+            mock_get_context.return_value = ([organization.id], True)
+            response = api_client.post(upload_url, data, format='multipart')
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert FileStorage.objects.count() == initial_count + 1
+        
+        # Verify the file was saved with the correct organization
+        new_file = FileStorage.objects.get(id=response.data['id'])
+        assert new_file.organization == organization
+        assert new_file.uploaded_by == user
+        assert new_file.original_filename == test_file.name
+        
+        # Clean up the created file from storage if necessary
+        new_file.file.delete(save=False)
+
+    def test_upload_multi_org_user_requires_org(self, api_client, user_in_org, organization, upload_url, test_file):
+        """Test multi-org user must provide organization when uploading a file."""
+        user, role = user_in_org  # Unpack user and role
+        # Assign permission to the role
+        perm = get_permission(FileStorage, 'add_filestorage')
+        role.permissions.add(perm)
+        api_client.force_authenticate(user=user)
+        
+        # Create a second organization for the user to make them a multi-org user
+        second_org = OrganizationFactory()
+        OrganizationMembershipFactory.create(
+            user=user,
+            organization=second_org,
+            role=role,
+            is_active=True
+        )
+        
+        # Data for the POST request - omit organization field
+        data = {
+            'file': test_file
+        }
+
+        # Mock the get_user_request_context to simulate multi-org user
+        with patch('core.rbac.utils.get_user_request_context') as mock_get_context:
+            # Return multiple organization IDs and False for is_single_org
+            mock_get_context.return_value = ([organization.id, second_org.id], False)
+            response = api_client.post(upload_url, data, format='multipart')
+
+        # Should get 403 Forbidden with a permission error message
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        # The response contains a permission denied error message
+        assert 'permission' in str(response.data).lower()
 
     # Add tests for file size validation, mime type validation (if implemented)
 

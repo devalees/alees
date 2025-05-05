@@ -108,10 +108,13 @@ class ContactScopingPermissionsAPITests(APITestCase):
         self.force_authenticate(self.user_org1_admin)
         response = self.client.get(self.list_create_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # With the current implementation, a user with access to an organization 
+        # only sees contacts from that organization
         self.assertEqual(response.data['count'], 2) # Only Org1 contacts
         contact_ids = {item['id'] for item in response.data['results']}
         self.assertIn(self.contact_org1_a.pk, contact_ids)
         self.assertIn(self.contact_org1_b.pk, contact_ids)
+        self.assertNotIn(self.contact_org2_a.pk, contact_ids) # Should not see org2 contacts
         
     def test_list_org1_viewer_sees_only_org1(self):
         # Viewer also has view permission
@@ -159,12 +162,35 @@ class ContactScopingPermissionsAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
     def test_create_without_organization_fails(self):
+        """Test creating a contact without organization for multi-org user fails but succeeds for single-org user."""
+        # For a multi-organization user, the organization_id should be required
         self.force_authenticate(self.user_org1_admin)
-        data = {'first_name': 'New', 'last_name': 'NoOrgFail'} # Missing organization_id
+        
+        # Create a second organization membership to make this a multi-org user
+        org2_membership = OrganizationMembershipFactory(
+            organization=self.org2, 
+            user=self.user_org1_admin,
+            role=self.admin_role
+        )
+        
+        data = {'first_name': 'New', 'last_name': 'NoOrgMulti'} # Missing organization_id
         response = self.client.post(self.list_create_url, data)
-        # Serializer should require organization_id (write_only=False, required=True)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('organization_id', response.data)
+        # Multi-org users receive a 403 Forbidden with permission denied error
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn('permission', str(response.data).lower())
+        
+        # Remove the second organization to make this a single-org user
+        org2_membership.delete()
+        
+        # For a single-organization user, the organization should be auto-determined
+        data = {'first_name': 'New', 'last_name': 'NoOrgSingle'} # Missing organization_id
+        response = self.client.post(self.list_create_url, data)
+        # Should succeed for single-org users
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        
+        # Verify the contact was created with the correct organization
+        new_contact = Contact.objects.get(last_name='NoOrgSingle')
+        self.assertEqual(new_contact.organization, self.org1)
 
     # === RETRIEVE Tests (View Permission on Object's Org) ===
     
@@ -190,8 +216,9 @@ class ContactScopingPermissionsAPITests(APITestCase):
     def test_retrieve_org1_admin_for_org2_fails(self):
         self.force_authenticate(self.user_org1_admin)
         response = self.client.get(self.detail_url_org2_a)
-        # has_object_permission checks perm on object's org (Org2)
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND) # Or 403 depending on exact perm check flow
+        # With the current implementation, a user with access to an organization
+        # cannot retrieve contacts from other organizations
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         
     def test_retrieve_org1_no_perm_for_org1_fails(self):
         self.force_authenticate(self.user_org1_no_perm)
@@ -270,8 +297,11 @@ class ContactScopingPermissionsAPITests(APITestCase):
     def test_delete_org1_admin_for_org2_fails(self):
         self.force_authenticate(self.user_org1_admin)
         response = self.client.delete(self.detail_url_org2_a)
-        # Checks delete_contact perm on object's org (Org2)
+        # With the current implementation, a user with access to an organization
+        # cannot delete contacts from other organizations
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        # The contact still exists
+        self.assertTrue(Contact.objects.filter(pk=self.contact_org2_a.pk).exists())
 
     # === Helper setup check ===
     def test_initial_contact_count(self):

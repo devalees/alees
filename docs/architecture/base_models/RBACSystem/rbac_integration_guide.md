@@ -239,49 +239,95 @@ class ContactViewSet(OrganizationScopedViewSetMixin, viewsets.ModelViewSet):
         return [HasModelPermissionInOrg()]
 ```
 
-**Step 2:** Update `perform_create` if necessary
+**Step 2:** Update `perform_create` to handle organization context properly
 
-For complex creation logic, you might need to customize the creation process:
+For proper organization handling, you need to customize the creation process to account for different user types (single-org users, multi-org users, and superusers):
 
 ```python
 def perform_create(self, serializer):
-    """Ensure organization_id is properly set when creating a contact."""
+    """Ensure organization context is properly set when creating a contact."""
     user = self.request.user
     logger.info(f"Creating contact by user {user.username} (superuser: {user.is_superuser})")
     
     # Get organization_id from request data
     organization_id = self.request.data.get('organization_id')
     
-    if user.is_superuser and organization_id:
-        # Superusers can create in any organization
-        try:
-            organization = Organization.objects.get(id=organization_id)
-            serializer.save(organization=organization)
-        except Organization.DoesNotExist:
-            raise ValidationError({"organization_id": ["Organization does not exist"]})
-    else:
-        # For regular users, validate organization_id against their memberships
-        active_org_ids = get_user_request_context(user)['active_org_ids']
-        
+    # If superuser, use the specified organization_id directly
+    if user.is_superuser:
         if organization_id:
             try:
-                organization_id = int(organization_id)
-            except (ValueError, TypeError):
-                raise ValidationError({"organization_id": ["Invalid organization ID format"]})
-                
-            if organization_id not in active_org_ids:
-                raise ValidationError({"organization_id": ["You are not a member of this organization"]})
-                
-            # Check permission in the target organization
-            if not has_perm_in_org(user, 'add_contact', organization_id):
-                raise PermissionDenied("You don't have permission to create contacts in this organization")
-                
-            organization = Organization.objects.get(id=organization_id)
-            serializer.save(organization=organization)
-        else:
-            # Default to no explicit organization
-            serializer.save()
+                organization = Organization.objects.get(pk=organization_id)
+                serializer.save(created_by=user, updated_by=user, organization=organization)
+                return
+            except Organization.DoesNotExist:
+                raise ValidationError({"organization_id": f"Organization with id {organization_id} does not exist."})
+    
+    # For non-superusers, handle organization context
+    from core.rbac.utils import get_user_request_context
+    from core.rbac.permissions import has_perm_in_org
+    
+    # Get user's active organizations
+    active_org_ids, is_single_org = get_user_request_context(user)
+    
+    if not active_org_ids:
+        raise PermissionDenied("You do not belong to any active organizations.")
+    
+    # Single-org user: use their only organization
+    if is_single_org and not organization_id:
+        org_id = active_org_ids[0]
+        try:
+            organization = Organization.objects.get(pk=org_id)
+            serializer.save(created_by=user, updated_by=user, organization=organization)
+            return
+        except Organization.DoesNotExist:
+            logger.error(f"Organization with ID {org_id} not found for single-org user")
+            raise ValidationError({"organization_id": f"Your organization with ID {org_id} does not exist."})
+    
+    # Multi-org user with specified organization_id
+    if organization_id:
+        # Convert organization_id to integer if it's a string
+        try:
+            org_id = int(organization_id)
+        except (ValueError, TypeError):
+            raise ValidationError({"organization_id": "Invalid organization ID format"})
+        
+        # Check if targeted organization is in user's active orgs
+        if org_id not in active_org_ids:
+            raise PermissionDenied(
+                f"You cannot create contacts in organization {org_id} as you are not a member."
+            )
+        
+        # Check if user has the appropriate permission in the organization
+        if not has_perm_in_org(user, "add_contact", org_id):
+            raise PermissionDenied(
+                f"You don't have permission to create contacts in organization {org_id}."
+            )
+        
+        # Get the organization object
+        try:
+            organization = Organization.objects.get(pk=org_id)
+            serializer.save(created_by=user, updated_by=user, organization=organization)
+            return
+        except Organization.DoesNotExist:
+            raise ValidationError({"organization_id": f"Organization with id {org_id} does not exist."})
+    
+    # If we get here, it's a multi-org user without organization_id
+    raise ValidationError({"organization_id": "Organization ID is required for users with multiple organizations."})
 ```
+
+This implementation handles three key scenarios:
+
+1. **Superusers**: Can explicitly specify an organization_id, which will be used if valid
+2. **Single-Organization Users**: Automatically uses their only organization when no organization_id is provided
+3. **Multi-Organization Users**: Must explicitly provide a valid organization_id
+
+The key improvements over the basic implementation:
+
+- Properly retrieves `is_single_org` flag from `get_user_request_context()`
+- Automatically sets the organization for single-org users
+- Validates permissions in the specified organization
+- Provides clear error messages for each validation failure case
+- Never saves a record without an organization, preventing null constraint violations
 
 **Step 3:** Update other methods if necessary
 

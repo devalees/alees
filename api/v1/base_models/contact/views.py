@@ -84,21 +84,36 @@ class ContactViewSet(OrganizationScopedViewSetMixin, viewsets.ModelViewSet):
                     from rest_framework.exceptions import ValidationError
                     raise ValidationError({"organization_id": f"Organization with id {organization_id} does not exist."})
         
-        # For regular users, check permissions for the specified organization
-        if not user.is_superuser and organization_id:
-            # Check if organization ID is valid and if user has permission
-            from core.rbac.utils import get_user_request_context
-            from core.rbac.permissions import has_perm_in_org
-            from rest_framework.exceptions import PermissionDenied
+        # For non-superusers, handle organization context
+        from core.rbac.utils import get_user_request_context
+        from core.rbac.permissions import has_perm_in_org
+        from rest_framework.exceptions import PermissionDenied
+        from rest_framework.exceptions import ValidationError
+        from api.v1.base_models.organization.models import Organization
             
-            # Get user's active organizations
-            active_org_ids, _ = get_user_request_context(user)
-            
+        # Get user's active organizations
+        active_org_ids, is_single_org = get_user_request_context(user)
+        
+        if not active_org_ids:
+            raise PermissionDenied("You do not belong to any active organizations.")
+        
+        # Single-org user: use their only organization
+        if is_single_org and not organization_id:
+            org_id = active_org_ids[0]
+            try:
+                organization = Organization.objects.get(pk=org_id)
+                serializer.save(created_by=user, updated_by=user, organization=organization)
+                return
+            except Organization.DoesNotExist:
+                logger.error(f"Organization with ID {org_id} not found for single-org user")
+                raise ValidationError({"organization_id": f"Your organization with ID {org_id} does not exist."})
+        
+        # Multi-org user with specified organization_id
+        if organization_id:
             # Convert organization_id to integer if it's a string
             try:
                 org_id = int(organization_id)
             except (ValueError, TypeError):
-                from rest_framework.exceptions import ValidationError
                 raise ValidationError({"organization_id": "Invalid organization ID format"})
             
             # Check if targeted organization is in user's active orgs
@@ -115,18 +130,16 @@ class ContactViewSet(OrganizationScopedViewSetMixin, viewsets.ModelViewSet):
                 )
             
             # Get the organization object
-            from api.v1.base_models.organization.models import Organization
             try:
                 organization = Organization.objects.get(pk=org_id)
                 # Set the organization in the serializer data
                 serializer.save(created_by=user, updated_by=user, organization=organization)
                 return
             except Organization.DoesNotExist:
-                from rest_framework.exceptions import ValidationError
                 raise ValidationError({"organization_id": f"Organization with id {org_id} does not exist."})
         
-        # If we get here, use the default logic
-        serializer.save(created_by=user, updated_by=user)
+        # If we get here, it's a multi-org user without organization_id
+        raise ValidationError({"organization_id": "Organization ID is required for users with multiple organizations."})
 
     def perform_update(self, serializer):
         """

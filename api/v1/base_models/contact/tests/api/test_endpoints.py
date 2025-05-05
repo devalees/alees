@@ -305,3 +305,78 @@ class TestContactAPI:
         # Optional: Check error message structure if needed
         # assert 'tags' in response.data
         # assert 'Select a valid choice' in str(response.data['tags']) 
+
+    def test_create_contact_single_org_user_no_org_id(self, authenticated_client, test_user, test_organization, list_create_url):
+        """Test creating a contact without organization_id for a single-organization user."""
+        # Assign role with add permission
+        admin_role = add_perms_to_role("Organization Admin", ["add_contact", "view_contact", "change_contact", "delete_contact"])
+        # Create single organization membership for the user
+        OrganizationMembershipFactory(user=test_user, organization=test_organization, role=admin_role)
+        
+        # Do not provide organization_id
+        data = {
+            "first_name": "Single",
+            "last_name": "OrgUser",
+            "email_addresses": [
+                {"email": "single@example.com", "email_type": "work", "is_primary": True}
+            ],
+            "phone_numbers": [
+                {"phone_number": "+15559876543", "phone_type": "mobile", "is_primary": True}
+            ]
+        }
+        response = authenticated_client.post(list_create_url, data, format='json')
+        
+        # Print response data on failure for debugging
+        if response.status_code != status.HTTP_201_CREATED:
+            print(f"Create Contact Response data: {response.data}")
+            
+        assert response.status_code == status.HTTP_201_CREATED
+        assert Contact.objects.count() == 1
+        contact = Contact.objects.get(id=response.data['id'])
+        assert contact.first_name == "Single"
+        assert contact.organization == test_organization  # Should use the user's only organization
+        assert contact.email_addresses.first().email == "single@example.com" 
+
+    def test_create_contact_multi_org_user_requires_org_id(self, authenticated_client, list_create_url):
+        """Test that multi-organization users must provide an organization_id when creating a contact."""
+        # Assign an "Organization Admin" role with all contact permissions
+        role = Group.objects.get(name="Organization Admin")
+        role.permissions.add(
+            Permission.objects.get(codename="add_contact"),
+            Permission.objects.get(codename="view_contact"),
+            Permission.objects.get(codename="change_contact"),
+            Permission.objects.get(codename="delete_contact"),
+        )
+
+        # Create memberships for two different organizations to make this a multi-org user
+        user = UserFactory()
+        org1 = OrganizationFactory()
+        org2 = OrganizationFactory()
+        OrganizationMembershipFactory(
+            organization=org1,
+            user=user,
+            role=role,
+            is_active=True
+        )
+        OrganizationMembershipFactory(
+            organization=org2,
+            user=user,
+            role=role,
+            is_active=True
+        )
+
+        # Use api_client directly, not self.client
+        api_client = APIClient()
+        api_client.force_authenticate(user=user)
+
+        # Attempt to create a contact without specifying organization_id
+        data = {
+            "first_name": "John",
+            "last_name": "Doe",
+            "email": "john.doe@example.com",
+        }
+        response = api_client.post(list_create_url, data, format="json")
+
+        # Should receive a 403 Forbidden with permission denied error
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert "permission" in str(response.data).lower() 

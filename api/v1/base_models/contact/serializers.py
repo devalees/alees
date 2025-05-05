@@ -17,6 +17,7 @@ from api.v1.base_models.contact.choices import (
 
 import logging
 from django.db import transaction
+from core.rbac.utils import get_user_request_context
 
 User = get_user_model()
 
@@ -275,27 +276,32 @@ class ContactSerializer(OrganizationScopedSerializerMixin, TaggitSerializer, ser
         """Validate that organization_id is provided when required."""
         # If organization_id is None (not provided) and this is a create operation
         if value is None and not self.instance:
-            # Only superusers can create contacts without specifying an organization
+            # Only superusers or single-org users can create contacts without specifying an organization
             request = self.context.get('request')
             user = request.user if request and hasattr(request, 'user') else None
             
-            # Superusers can create contacts in any organization
-            if user and user.is_superuser:
+            # Check if superuser or single-org user
+            if user and (user.is_superuser or self.is_single_org_user(user)):
                 return value
                 
-            # Non-superusers must provide organization_id
+            # Multi-org users must provide organization_id
             raise serializers.ValidationError('This field is required when creating a contact.')
         return value
 
+    def is_single_org_user(self, user):
+        """Check if user belongs to exactly one organization."""
+        active_org_ids, is_single_org = get_user_request_context(user)
+        return is_single_org
+
     def validate(self, attrs):
         """Validate the data as a whole."""
-        # First check if this is a create operation and organization_id is missing for non-superusers
+        # First check if this is a create operation and organization_id is missing for multi-org users
         if not self.instance:  # Create operation
             request = self.context.get('request')
             user = request.user if request and hasattr(request, 'user') else None
             
-            # For non-superusers, organization_id is required
-            if not (user and user.is_superuser) and 'organization' not in attrs:
+            # For multi-org non-superusers, organization_id is required
+            if not (user and (user.is_superuser or self.is_single_org_user(user))) and 'organization' not in attrs:
                 raise serializers.ValidationError({
                     'organization_id': 'This field is required when creating a contact.'
                 })
