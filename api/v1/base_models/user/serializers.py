@@ -12,6 +12,7 @@ class UserSimpleSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('id', 'username', 'email') # Add/remove fields as needed for context
+        fields = ('id', 'first_name', 'last_name', 'email') # Use email, first_name, last_name
         read_only_fields = fields # Typically read-only in this context
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -85,3 +86,37 @@ class UserProfileSerializer(serializers.ModelSerializer):
         if internal_value.get('profile_picture') == "":
             internal_value['profile_picture'] = None
         return internal_value 
+
+class UserSerializer(serializers.ModelSerializer):
+    """Serializer for the User model, including nested profile."""
+    profile = UserProfileSerializer(required=False) # Nested profile serializer
+
+    class Meta:
+        model = User
+        fields = (
+            'id', 'email', 'first_name', 'last_name', 
+            'is_active', 'is_staff', 'is_superuser', 
+            'date_joined', 'last_login',
+            'profile' # Include the nested profile
+        )
+        read_only_fields = ('id', 'email', 'is_staff', 'is_superuser', 'date_joined', 'last_login')
+        extra_kwargs = {
+            'first_name': {'required': True},
+            'last_name': {'required': True},
+        }
+
+    def update(self, instance, validated_data):
+        profile_data = validated_data.pop('profile', None)
+
+        # Update User fields
+        instance = super().update(instance, validated_data)
+
+        # Update nested profile if data exists
+        if profile_data:
+            profile_serializer = UserProfileSerializer(
+                instance.profile, data=profile_data, partial=True, context=self.context
+            )
+            if profile_serializer.is_valid(raise_exception=True):
+                profile_serializer.save()
+            
+        return instance 
