@@ -45,7 +45,8 @@ def user_in_org(db, organization, default_role):
     )
     # Refresh user instance if needed (though membership is separate)
     # user.refresh_from_db() 
-    return user
+    # Return both user and their role for permission assignment
+    return user, default_role
 
 @pytest.fixture
 def upload_url():
@@ -61,10 +62,11 @@ class TestFileUploadView:
 
     def test_upload_success(self, api_client, user_in_org, organization, upload_url, test_file):
         """Test successful file upload with correct permissions."""
-        # Assign permission to the user
+        user, role = user_in_org # Unpack user and role
+        # Assign permission to the role
         perm = get_permission(FileStorage, 'add_filestorage')
-        user_in_org.user_permissions.add(perm)
-        api_client.force_authenticate(user=user_in_org)
+        role.permissions.add(perm) 
+        api_client.force_authenticate(user=user)
         
         # Data for the POST request
         data = {
@@ -83,12 +85,12 @@ class TestFileUploadView:
         assert response.data['original_filename'] == test_file.name
         assert response.data['mime_type'] == test_file.content_type
         assert response.data['organization']['id'] == organization.id
-        assert response.data['uploaded_by']['id'] == user_in_org.id
+        assert response.data['uploaded_by']['id'] == user.id
 
         # Verify saved object
         new_file = FileStorage.objects.get(id=response.data['id'])
         assert new_file.organization == organization
-        assert new_file.uploaded_by == user_in_org
+        assert new_file.uploaded_by == user
         assert new_file.original_filename == test_file.name
         # assert new_file.file.read() == test_file.read() # Content check failing, maybe due to test storage
         # Check if file field has a name and size instead
@@ -100,8 +102,9 @@ class TestFileUploadView:
     @patch('api.v1.base_models.common.fileStorage.views.has_perm_in_org', return_value=False)
     def test_upload_no_permission(self, mock_perm_check, api_client, user_in_org, organization, upload_url, test_file):
         """Test file upload fails when user lacks permission."""
+        user, _ = user_in_org # Unpack user, ignore role
         # DO NOT assign permission
-        api_client.force_authenticate(user=user_in_org)
+        api_client.force_authenticate(user=user)
         
         data = {
             'file': test_file,
@@ -111,7 +114,7 @@ class TestFileUploadView:
         response = api_client.post(upload_url, data, format='multipart')
         assert response.status_code == status.HTTP_403_FORBIDDEN
         # Ensure the mock was called
-        mock_perm_check.assert_called_once_with(user_in_org, 'file_storage.add_filestorage', organization)
+        mock_perm_check.assert_called_once_with(user, 'file_storage.add_filestorage', organization)
 
     def test_upload_unauthenticated(self, api_client, upload_url, test_file, organization):
         """Test file upload fails for unauthenticated users."""
@@ -124,9 +127,10 @@ class TestFileUploadView:
 
     def test_upload_missing_file(self, api_client, user_in_org, organization, upload_url):
         """Test file upload fails if 'file' is missing."""
+        user, role = user_in_org # Unpack user and role
         perm = get_permission(FileStorage, 'add_filestorage')
-        user_in_org.user_permissions.add(perm)
-        api_client.force_authenticate(user=user_in_org)
+        role.permissions.add(perm) # Assign to role
+        api_client.force_authenticate(user=user)
 
         data = {
             'organization': organization.id
@@ -137,9 +141,10 @@ class TestFileUploadView:
 
     def test_upload_missing_organization(self, api_client, user_in_org, upload_url, test_file):
         """Test file upload fails if 'organization' is missing (if required by view)."""
+        user, role = user_in_org # Unpack user and role
         perm = get_permission(FileStorage, 'add_filestorage')
-        user_in_org.user_permissions.add(perm)
-        api_client.force_authenticate(user=user_in_org)
+        role.permissions.add(perm) # Assign to role
+        api_client.force_authenticate(user=user)
 
         data = {
             'file': test_file
@@ -158,7 +163,7 @@ def file_instance(db, organization, user_in_org):
     # If content saving is still problematic, might need storage mocking
     return FileStorageFactory.create(
         organization=organization, 
-        uploaded_by=user_in_org,
+        uploaded_by=user_in_org[0],
         original_filename='test_list.pdf',
         mime_type='application/pdf'
     )
@@ -179,10 +184,11 @@ class TestFileStorageViewSet:
 
     def test_list_success(self, api_client, user_in_org, organization, file_instance, list_url):
         """Test LIST endpoint returns files for the user's organization."""
-        # Assign view permission
+        user, role = user_in_org # Unpack user and role
+        # Assign view permission to the role
         perm = get_permission(FileStorage, 'view_filestorage')
-        user_in_org.user_permissions.add(perm)
-        api_client.force_authenticate(user=user_in_org)
+        role.permissions.add(perm) 
+        api_client.force_authenticate(user=user)
 
         # Create a file in another org - should NOT be listed
         other_org = OrganizationFactory()
@@ -197,8 +203,9 @@ class TestFileStorageViewSet:
 
     def test_list_no_permission(self, api_client, user_in_org, file_instance, list_url):
         """Test LIST endpoint fails without view permission."""
+        user, _ = user_in_org # Unpack user, ignore role
         # DO NOT assign permission
-        api_client.force_authenticate(user=user_in_org)
+        api_client.force_authenticate(user=user)
         response = api_client.get(list_url)
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
@@ -211,10 +218,12 @@ class TestFileStorageViewSet:
     @patch('api.v1.base_models.common.fileStorage.serializers.has_perm_in_org')
     def test_retrieve_success_with_perm(self, mock_perm_check, api_client, user_in_org, file_instance, detail_url):
         """Test RETRIEVE endpoint success with view permission."""
-        mock_perm_check.return_value = True # Simulate user having perm
+        user, role = user_in_org # Unpack user and role
+        mock_perm_check.return_value = True # Simulate user having perm for URL generation
+        # Assign view permission to the role for the viewset check
         perm = get_permission(FileStorage, 'view_filestorage')
-        user_in_org.user_permissions.add(perm)
-        api_client.force_authenticate(user=user_in_org)
+        role.permissions.add(perm)
+        api_client.force_authenticate(user=user)
 
         response = api_client.get(detail_url)
 
@@ -222,46 +231,49 @@ class TestFileStorageViewSet:
         assert response.data['id'] == file_instance.id
         assert response.data['original_filename'] == file_instance.original_filename
         assert response.data['download_url'] is not None # Should get URL with perm
-        mock_perm_check.assert_called_once_with(user_in_org, 'file_storage.view_filestorage', file_instance.organization)
+        mock_perm_check.assert_called_once_with(user, 'file_storage.view_filestorage', file_instance.organization)
 
     # Use patch to simulate permission checks for download URL generation
     @patch('api.v1.base_models.common.fileStorage.serializers.has_perm_in_org')
     def test_retrieve_success_without_perm_for_url(self, mock_perm_check, api_client, user_in_org, file_instance, detail_url):
         """Test RETRIEVE success, but download_url is None without perm."""
+        user, role = user_in_org # Unpack user and role
         mock_perm_check.return_value = False # Simulate user lacking perm for URL
+        # Assign view permission to the role for the viewset check
         perm = get_permission(FileStorage, 'view_filestorage')
-        user_in_org.user_permissions.add(perm)
-        api_client.force_authenticate(user=user_in_org)
+        role.permissions.add(perm)
+        api_client.force_authenticate(user=user)
 
         response = api_client.get(detail_url)
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data['id'] == file_instance.id
         assert response.data['download_url'] is None # Should NOT get URL without perm
-        mock_perm_check.assert_called_once_with(user_in_org, 'file_storage.view_filestorage', file_instance.organization)
+        mock_perm_check.assert_called_once_with(user, 'file_storage.view_filestorage', file_instance.organization)
 
     def test_retrieve_no_view_permission(self, api_client, user_in_org, file_instance, detail_url):
         """Test RETRIEVE endpoint fails without view permission for the object."""
+        user, _ = user_in_org # Unpack user, ignore role
         # DO NOT assign permission
-        api_client.force_authenticate(user=user_in_org)
+        api_client.force_authenticate(user=user)
         response = api_client.get(detail_url)
         assert response.status_code == status.HTTP_403_FORBIDDEN # Or 404 if queryset filters it
 
     def test_retrieve_different_org(self, api_client, user_in_org, detail_url):
-        """Test RETRIEVE fails for file in a different organization."""
-        # user_in_org belongs to 'organization' fixture
-        # Create a file in another organization
+        """Test RETRIEVE fails for files in organizations the user is not part of."""
+        user, role = user_in_org # Unpack user and role
+        # Assign view permission (shouldn't matter as org is wrong)
+        perm = get_permission(FileStorage, 'view_filestorage')
+        role.permissions.add(perm)
+        api_client.force_authenticate(user=user)
+
+        # Create file in a different org
         other_org = OrganizationFactory()
         other_file = FileStorageFactory(organization=other_org)
         
         # Get the detail URL for the other file
         other_detail_url = reverse(f'{FILESTORAGE_NAMESPACE}:file-detail', kwargs={'pk': other_file.id})
         
-        # Assign view permission (should still fail due to org scoping)
-        perm = get_permission(FileStorage, 'view_filestorage')
-        user_in_org.user_permissions.add(perm)
-        api_client.force_authenticate(user=user_in_org)
-
         response = api_client.get(other_detail_url)
         
         # Expect 404 because the queryset is scoped to the user's org
@@ -273,13 +285,14 @@ class TestFileStorageViewSet:
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_delete_success_with_perm(self, mocker, api_client, detail_url, file_instance, user_in_org):
-        """Test DELETE success with delete permission."""
+        """Test DELETE endpoint success with delete permission."""
+        user, role = user_in_org # Unpack user and role
+        # Assign delete permission to the role
         perm = get_permission(FileStorage, 'delete_filestorage')
-        user_in_org.user_permissions.add(perm)
-        api_client.force_authenticate(user=user_in_org)
+        role.permissions.add(perm)
+        api_client.force_authenticate(user=user)
         
-        # Mock the actual file deletion from storage to avoid test failures
-        # Note: We need to mock the method on the FieldFile class itself
+        # Mock the physical file deletion
         mock_delete = mocker.patch.object(FieldFile, 'delete')
         
         initial_count = FileStorage.objects.count()
@@ -295,23 +308,22 @@ class TestFileStorageViewSet:
             FileStorage.objects.get(id=file_instance.id)
 
     def test_delete_no_permission(self, api_client, detail_url, file_instance, user_in_org):
-        """Test DELETE fails without delete permission."""
-        # Assign only view perm, not delete perm
-        perm = get_permission(FileStorage, 'view_filestorage')
-        user_in_org.user_permissions.add(perm)
-        api_client.force_authenticate(user=user_in_org)
-
+        """Test DELETE endpoint fails without delete permission."""
+        user, _ = user_in_org # Unpack user, ignore role
+        # DO NOT assign delete permission
+        api_client.force_authenticate(user=user)
         response = api_client.delete(detail_url)
         assert response.status_code == status.HTTP_403_FORBIDDEN
         # Verify object still exists
         assert FileStorage.objects.filter(id=file_instance.id).exists()
 
     def test_delete_different_org(self, api_client, file_instance, user_in_org):
-        """Test DELETE fails for file in a different organization."""
-        # Assign delete perm (should still fail due to org scoping)
+        """Test DELETE fails for files in organizations the user is not part of."""
+        user, role = user_in_org # Unpack user and role
+        # Assign delete permission (shouldn't matter as org is wrong)
         perm = get_permission(FileStorage, 'delete_filestorage')
-        user_in_org.user_permissions.add(perm)
-        api_client.force_authenticate(user=user_in_org)
+        role.permissions.add(perm)
+        api_client.force_authenticate(user=user)
         
         # Create file in other org
         other_org = OrganizationFactory()
@@ -325,7 +337,7 @@ class TestFileStorageViewSet:
         assert FileStorage.objects.filter(id=other_file.id).exists()
 
     def test_delete_unauthenticated(self, api_client, detail_url, file_instance):
-        """Test DELETE fails for unauthenticated users."""
+        """Test DELETE endpoint fails for unauthenticated users."""
         response = api_client.delete(detail_url)
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
         # Verify object still exists

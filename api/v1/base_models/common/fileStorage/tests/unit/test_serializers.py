@@ -9,6 +9,7 @@ from api.v1.base_models.common.fileStorage.serializers import FileStorageSeriali
 from api.v1.base_models.common.fileStorage.tests.factories import FileStorageFactory
 from api.v1.base_models.user.tests.factories import UserFactory
 from api.v1.base_models.organization.tests.factories import OrganizationFactory
+from api.v1.base_models.organization.tests.factories import OrganizationMembershipFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -17,6 +18,9 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture
 def user_with_perm(mocker): # Mocker fixture for patching
     user = UserFactory()
+    # Add organization membership for the user
+    org = OrganizationFactory()
+    OrganizationMembershipFactory.create(user=user, organization=org, is_active=True)
     # Mock the permission check function directly for simplicity in unit tests
     mocker.patch(
         'api.v1.base_models.common.fileStorage.serializers.has_perm_in_org',
@@ -27,6 +31,9 @@ def user_with_perm(mocker): # Mocker fixture for patching
 @pytest.fixture
 def user_without_perm(mocker):
     user = UserFactory()
+    # Add organization membership for the user (needed for mixin validation)
+    org = OrganizationFactory()
+    OrganizationMembershipFactory.create(user=user, organization=org, is_active=True)
     mocker.patch(
         'api.v1.base_models.common.fileStorage.serializers.has_perm_in_org',
         return_value=False
@@ -43,7 +50,13 @@ def mock_request_context(): # Renamed and removed user parameter
 def file_storage_instance(db):
     # Create a file with some content for URL generation
     content = ContentFile(b"file content", name="testfile.txt")
-    return FileStorageFactory.create(file=content)
+    # Ensure the user created by the factory also has an org membership
+    org = OrganizationFactory()
+    user = UserFactory()
+    OrganizationMembershipFactory.create(user=user, organization=org, is_active=True)
+    return FileStorageFactory.create(file=content,
+                                    organization=org,
+                                    uploaded_by=user)
 
 
 # --- Serializer Tests ---
