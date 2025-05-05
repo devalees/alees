@@ -5,7 +5,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 import logging
 
 # Import Mixin and RBAC Permission
-from core.views import OrganizationScopedViewSetMixin 
+from core.viewsets.mixins import OrganizationScopedViewSetMixin 
 from core.rbac.drf_permissions import HasModelPermissionInOrg
 
 from api.v1.base_models.contact.models import (
@@ -31,6 +31,10 @@ class ContactViewSet(OrganizationScopedViewSetMixin, viewsets.ModelViewSet):
     - Search by first_name, last_name, organization_name
     - Ordering by multiple fields
     - Nested channel operations (email, phone, address)
+    
+    Permission handling:
+    - Superusers bypass all permission checks (handled by HasModelPermissionInOrg)
+    - Regular users need appropriate permissions in the target organization
     """
     # Apply Org Scoping and RBAC permissions
     permission_classes = [HasModelPermissionInOrg]
@@ -54,6 +58,94 @@ class ContactViewSet(OrganizationScopedViewSetMixin, viewsets.ModelViewSet):
         'created_at', 'updated_at'
     ]
     ordering = ['-created_at']  # Default ordering
+
+    def perform_create(self, serializer):
+        """
+        Ensure user and organization context are correctly set when creating.
+        Additional permission checks for creating contacts in organizations.
+        Also ensure organization_id is correctly processed for all users.
+        """
+        user = self.request.user
+        logger.info(f"Creating contact by user: {user.username}, superuser: {user.is_superuser}")
+        
+        # Get organization_id from request data
+        organization_id = self.request.data.get('organization_id')
+        
+        # If superuser, use the specified organization_id directly
+        if user.is_superuser:
+            if organization_id:
+                from api.v1.base_models.organization.models import Organization
+                try:
+                    organization = Organization.objects.get(pk=organization_id)
+                    # Set the organization in the serializer data
+                    serializer.save(created_by=user, updated_by=user, organization=organization)
+                    return
+                except Organization.DoesNotExist:
+                    from rest_framework.exceptions import ValidationError
+                    raise ValidationError({"organization_id": f"Organization with id {organization_id} does not exist."})
+        
+        # For regular users, check permissions for the specified organization
+        if not user.is_superuser and organization_id:
+            # Check if organization ID is valid and if user has permission
+            from core.rbac.utils import get_user_request_context
+            from core.rbac.permissions import has_perm_in_org
+            from rest_framework.exceptions import PermissionDenied
+            
+            # Get user's active organizations
+            active_org_ids, _ = get_user_request_context(user)
+            
+            # Convert organization_id to integer if it's a string
+            try:
+                org_id = int(organization_id)
+            except (ValueError, TypeError):
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({"organization_id": "Invalid organization ID format"})
+            
+            # Check if targeted organization is in user's active orgs
+            if org_id not in active_org_ids:
+                # Trying to create in an org the user is not a member of
+                raise PermissionDenied(
+                    f"You cannot create contacts in organization {org_id} as you are not a member."
+                )
+            
+            # Check if user has the appropriate permission in the organization
+            if not has_perm_in_org(user, "add_contact", org_id):
+                raise PermissionDenied(
+                    f"You don't have permission to create contacts in organization {org_id}."
+                )
+            
+            # Get the organization object
+            from api.v1.base_models.organization.models import Organization
+            try:
+                organization = Organization.objects.get(pk=org_id)
+                # Set the organization in the serializer data
+                serializer.save(created_by=user, updated_by=user, organization=organization)
+                return
+            except Organization.DoesNotExist:
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({"organization_id": f"Organization with id {org_id} does not exist."})
+        
+        # If we get here, use the default logic
+        serializer.save(created_by=user, updated_by=user)
+
+    def perform_update(self, serializer):
+        """
+        Ensure user context is correctly set when updating.
+        Permission checks should be handled by HasModelPermissionInOrg.
+        """
+        user = self.request.user
+        logger.info(f"Updating contact by user: {user.username}, superuser: {user.is_superuser}")
+        
+        # Update the user who last modified the contact
+        serializer.save(updated_by=user)
+
+    def get_serializer_context(self):
+        """
+        Add additional context for serializers.
+        Ensures the serializer has access to the request and user.
+        """
+        context = super().get_serializer_context()
+        return context
 
     @action(detail=True, methods=['get'])
     def channels(self, request, pk=None):
@@ -88,7 +180,7 @@ class ContactViewSet(OrganizationScopedViewSetMixin, viewsets.ModelViewSet):
 
 class ContactEmailAddressViewSet(viewsets.ModelViewSet):
     """ViewSet for ContactEmailAddress model."""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [HasModelPermissionInOrg]
     queryset = ContactEmailAddress.objects.all()
     serializer_class = ContactEmailAddressSerializer
     filter_backends = [DjangoFilterBackend]
@@ -105,7 +197,7 @@ class ContactEmailAddressViewSet(viewsets.ModelViewSet):
 
 class ContactPhoneNumberViewSet(viewsets.ModelViewSet):
     """ViewSet for ContactPhoneNumber model."""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [HasModelPermissionInOrg]
     queryset = ContactPhoneNumber.objects.all()
     serializer_class = ContactPhoneNumberSerializer
     filter_backends = [DjangoFilterBackend]
@@ -122,7 +214,7 @@ class ContactPhoneNumberViewSet(viewsets.ModelViewSet):
 
 class ContactAddressViewSet(viewsets.ModelViewSet):
     """ViewSet for ContactAddress model."""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [HasModelPermissionInOrg]
     queryset = ContactAddress.objects.all()
     serializer_class = ContactAddressSerializer
     filter_backends = [DjangoFilterBackend]

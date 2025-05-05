@@ -20,6 +20,8 @@ class HasModelPermissionInOrg(permissions.BasePermission):
      - For list actions: Checks if user has 'view' perm in *any* active org.
      - For create actions: Validates provided/inferred org and checks 'add' perm in that specific org.
      - For object actions (retrieve, update, delete): Checks perm against the object's org.
+     
+     Note: Superusers bypass all permission checks.
      """
      # Optional: map actions to required permissions if not using convention
      # action_perm_map = {'list': 'view', 'retrieve': 'view', ...}
@@ -83,35 +85,40 @@ class HasModelPermissionInOrg(permissions.BasePermission):
          return f'{model_cls._meta.app_label}.{perm_codename}'
 
      def has_permission(self, request, view):
-         # For LIST and CREATE (no specific object yet)
-         logger.debug("[PermClass] has_permission called for action: %s", view.action)
+         """Check permissions for view-level actions (list, create)."""
+         # CRITICAL: Superusers bypass all permission checks immediately
+         if request.user and request.user.is_superuser:
+             logger.debug("[PermClass] Superuser granted permission automatically")
+             return True
+             
+         # Authentication check
          user = request.user
-         if not user or not user.is_authenticated: return False
-         if user.is_superuser: return True
-
+         if not user or not user.is_authenticated: 
+             logger.debug("[PermClass] User not authenticated")
+             return False
+         
+         # For standard options/metadata requests (like schema generation)
+         if view.action in ['metadata', 'options']:
+             logger.debug("[PermClass] Allowing standard action %s without specific permission.", view.action)
+             return True
+         
          # Determine required permission codename using the view
          perm_codename = self.get_required_permission(request, view) # No obj here
          logger.debug("[PermClass] Required perm for %s: %s", view.action, perm_codename)
          
-         # *** IMPORTANT FIX: If perm_codename is None, deny permission ***
-         # (unless it's a known safe action like OPTIONS, but deny others)
+         # If perm_codename is None, deny permission
          if not perm_codename:
-             if view.action in ['metadata', 'options']: # Allow standard metadata actions
-                 logger.debug("[PermClass] Allowing standard action %s without specific permission.", view.action)
-                 return True
              logger.warning("[PermClass] Denying action %s because required permission could not be determined.", view.action)
-             return False # Deny if permission cannot be determined
-
+             return False
+             
          if view.action == 'list':
              # For list, check if user has view permission in *any* of their orgs
-             # The queryset filtering will handle showing only accessible data
              active_org_ids, _ = get_user_request_context(user)
              if not active_org_ids:
                  logger.debug("[PermClass] Denying List: User has no active organizations")
                  return False # User isn't in any active org, can't list anything
 
              # Check if the user has the view perm in at least one of their orgs
-             # Note: has_perm_in_org uses caching
              has_view_perm_somewhere = any(
                  has_perm_in_org(user, perm_codename, org_id)
                  for org_id in active_org_ids
@@ -128,7 +135,7 @@ class HasModelPermissionInOrg(permissions.BasePermission):
 
                  if target_org_id is None:
                      # This case *shouldn't* happen with required_for_action=True,
-                     # but handle defensively. Maybe the user has no orgs (handled by PermissionDenied below).
+                     # but handle defensively. Maybe the user has no orgs.
                      logger.warning("[PermClass] get_validated_request_org_id returned None unexpectedly for create action.")
                      return False
 
@@ -152,27 +159,30 @@ class HasModelPermissionInOrg(permissions.BasePermission):
              # or potentially for detail views before the object is fetched,
              # DRF might call has_permission. We should allow the request to proceed
              # so that has_object_permission can handle the specific object check later.
-             # Denying here might prevent has_object_permission from ever being called.
              logger.debug("[PermClass] Allowing non-list/create action '%s' in has_permission, deferring to has_object_permission if applicable.", view.action)
              return True # Allow request to proceed
 
      def has_object_permission(self, request, view, obj):
-         # For RETRIEVE, UPDATE, PARTIAL_UPDATE, DESTROY
-         logger.debug("[PermClass] has_object_permission called for action: %s on obj %s", view.action, obj)
+         """Check permissions for object-level actions (retrieve, update, delete)."""
+         # CRITICAL: Superusers bypass all permission checks immediately
+         if request.user and request.user.is_superuser:
+             logger.debug("[PermClass] Superuser granted object permission automatically")
+             return True
+         
+         # Authentication check
          user = request.user
-         if not user or not user.is_authenticated: return False
-         if user.is_superuser: return True
-
+         if not user or not user.is_authenticated:
+             logger.debug("[PermClass] User not authenticated") 
+             return False
+         
          # Use the unified method to get permission, passing the object
          required_perm = self.get_required_permission(request, view, obj=obj)
          logger.debug("[PermClass] Required perm for obj action: %s", required_perm)
 
          if not required_perm:
              # If no specific permission mapped, deny access by default for safety
-             # unless it's a known safe action (like OPTIONS)
-             # Revisit if specific custom actions need permission bypass
              logger.warning("[PermClass] Denying object action '%s' because required permission could not be determined.", view.action)
-             return False # Deny if permission cannot be determined
+             return False
 
          # Use the org-aware helper function with the specific object
          has_perm = has_perm_in_org(user, required_perm, obj)

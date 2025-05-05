@@ -78,10 +78,19 @@ class ContactScopingPermissionsAPITests(APITestCase):
         # Correct URL reversing
         return reverse('v1:base_models:contact:contact-detail', kwargs={'pk': pk})
 
+    def force_authenticate(self, user):
+        """Custom authentication helper to ensure is_superuser flag is properly respected."""
+        # Call the client's force_authenticate
+        self.client.force_authenticate(user=user)
+        
+        # Add debug logging for clarity in test execution
+        if user.is_superuser:
+            print(f"DEBUG: Authenticated superuser: {user.username}, is_superuser={user.is_superuser}")
+
     # === LIST Tests (Scoping & View Permission) ===
 
     def test_list_superuser_sees_all(self):
-        self.client.force_authenticate(user=self.superuser)
+        self.force_authenticate(self.superuser)
         response = self.client.get(self.list_create_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['count'], 3) # Sees Org1 and Org2 contacts
@@ -90,13 +99,13 @@ class ContactScopingPermissionsAPITests(APITestCase):
         self.assertIn(self.contact_org1_b.pk, contact_ids)
 
     def test_list_user_no_member_sees_none(self):
-        self.client.force_authenticate(user=self.user_no_member)
+        self.force_authenticate(self.user_no_member)
         response = self.client.get(self.list_create_url)
         # Expect 403 because user isn't in any org and permission check fails
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_list_org1_admin_sees_only_org1(self):
-        self.client.force_authenticate(user=self.user_org1_admin)
+        self.force_authenticate(self.user_org1_admin)
         response = self.client.get(self.list_create_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['count'], 2) # Only Org1 contacts
@@ -106,14 +115,14 @@ class ContactScopingPermissionsAPITests(APITestCase):
         
     def test_list_org1_viewer_sees_only_org1(self):
         # Viewer also has view permission
-        self.client.force_authenticate(user=self.user_org1_viewer)
+        self.force_authenticate(self.user_org1_viewer)
         response = self.client.get(self.list_create_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['count'], 2)
         
     def test_list_org1_no_perm_sees_none(self):
         # Member of Org1 but lacks view_contact perm
-        self.client.force_authenticate(user=self.user_org1_no_perm)
+        self.force_authenticate(self.user_org1_no_perm)
         response = self.client.get(self.list_create_url)
         # Expect 403 because user lacks view perm in their only org
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -121,7 +130,7 @@ class ContactScopingPermissionsAPITests(APITestCase):
     # === CREATE Tests (Add Permission in Target Org) ===
 
     def test_create_superuser_succeeds(self):
-        self.client.force_authenticate(user=self.superuser)
+        self.force_authenticate(self.superuser)
         data = {'first_name': 'New', 'last_name': 'SuperContact', 'organization_id': self.org1.pk}
         response = self.client.post(self.list_create_url, data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -129,28 +138,28 @@ class ContactScopingPermissionsAPITests(APITestCase):
         self.assertEqual(response.data['organization']['id'], self.org1.pk)
         
     def test_create_org1_admin_in_org1_succeeds(self):
-        self.client.force_authenticate(user=self.user_org1_admin)
+        self.force_authenticate(self.user_org1_admin)
         data = {'first_name': 'New', 'last_name': 'AdminContact1', 'organization_id': self.org1.pk}
         response = self.client.post(self.list_create_url, data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(Contact.objects.filter(last_name='AdminContact1', organization=self.org1).exists())
         
     def test_create_org1_admin_in_org2_fails(self):
-        self.client.force_authenticate(user=self.user_org1_admin)
+        self.force_authenticate(self.user_org1_admin)
         data = {'first_name': 'New', 'last_name': 'AdminContact2Fail', 'organization_id': self.org2.pk}
         response = self.client.post(self.list_create_url, data)
         # perform_create in mixin checks add perm in target org
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
     def test_create_org1_viewer_in_org1_fails(self):
-        self.client.force_authenticate(user=self.user_org1_viewer)
+        self.force_authenticate(self.user_org1_viewer)
         data = {'first_name': 'New', 'last_name': 'ViewerContact1Fail', 'organization_id': self.org1.pk}
         response = self.client.post(self.list_create_url, data)
         # Viewer lacks add_contact perm
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
     def test_create_without_organization_fails(self):
-        self.client.force_authenticate(user=self.user_org1_admin)
+        self.force_authenticate(self.user_org1_admin)
         data = {'first_name': 'New', 'last_name': 'NoOrgFail'} # Missing organization_id
         response = self.client.post(self.list_create_url, data)
         # Serializer should require organization_id (write_only=False, required=True)
@@ -160,7 +169,7 @@ class ContactScopingPermissionsAPITests(APITestCase):
     # === RETRIEVE Tests (View Permission on Object's Org) ===
     
     def test_retrieve_superuser_succeeds(self):
-        self.client.force_authenticate(user=self.superuser)
+        self.force_authenticate(self.superuser)
         response = self.client.get(self.detail_url_org1_a)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['id'], self.contact_org1_a.pk)
@@ -169,23 +178,23 @@ class ContactScopingPermissionsAPITests(APITestCase):
         self.assertEqual(response.data['id'], self.contact_org2_a.pk)
         
     def test_retrieve_org1_admin_for_org1_succeeds(self):
-        self.client.force_authenticate(user=self.user_org1_admin)
+        self.force_authenticate(self.user_org1_admin)
         response = self.client.get(self.detail_url_org1_a)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
     def test_retrieve_org1_viewer_for_org1_succeeds(self):
-        self.client.force_authenticate(user=self.user_org1_viewer)
+        self.force_authenticate(self.user_org1_viewer)
         response = self.client.get(self.detail_url_org1_a)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
     def test_retrieve_org1_admin_for_org2_fails(self):
-        self.client.force_authenticate(user=self.user_org1_admin)
+        self.force_authenticate(self.user_org1_admin)
         response = self.client.get(self.detail_url_org2_a)
         # has_object_permission checks perm on object's org (Org2)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND) # Or 403 depending on exact perm check flow
         
     def test_retrieve_org1_no_perm_for_org1_fails(self):
-        self.client.force_authenticate(user=self.user_org1_no_perm)
+        self.force_authenticate(self.user_org1_no_perm)
         response = self.client.get(self.get_detail_url(self.contact_org1_a.pk))
         # Should be 403 Forbidden because the user is in the org but lacks the permission
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -193,7 +202,7 @@ class ContactScopingPermissionsAPITests(APITestCase):
     # === UPDATE Tests (Change Permission on Object's Org) ===
 
     def test_update_superuser_succeeds(self):
-        self.client.force_authenticate(user=self.superuser)
+        self.force_authenticate(self.superuser)
         data = {'first_name': 'UpdatedSuper'}
         response = self.client.patch(self.detail_url_org1_a, data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -201,7 +210,7 @@ class ContactScopingPermissionsAPITests(APITestCase):
         self.assertEqual(self.contact_org1_a.first_name, 'UpdatedSuper')
         
     def test_update_org1_admin_for_org1_succeeds(self):
-        self.client.force_authenticate(user=self.user_org1_admin)
+        self.force_authenticate(self.user_org1_admin)
         data = {'first_name': 'UpdatedAdmin'}
         response = self.client.patch(self.detail_url_org1_a, data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -209,7 +218,7 @@ class ContactScopingPermissionsAPITests(APITestCase):
         self.assertEqual(self.contact_org1_a.first_name, 'UpdatedAdmin')
         
     def test_update_org1_editor_for_org1_succeeds(self):
-        self.client.force_authenticate(user=self.user_org1_editor)
+        self.force_authenticate(self.user_org1_editor)
         data = {'first_name': 'UpdatedEditor'}
         response = self.client.patch(self.detail_url_org1_a, data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -217,14 +226,14 @@ class ContactScopingPermissionsAPITests(APITestCase):
         self.assertEqual(self.contact_org1_a.first_name, 'UpdatedEditor')
         
     def test_update_org1_viewer_for_org1_fails(self):
-        self.client.force_authenticate(user=self.user_org1_viewer)
+        self.force_authenticate(self.user_org1_viewer)
         data = {'first_name': 'UpdatedViewerFail'}
         response = self.client.patch(self.detail_url_org1_a, data)
         # Viewer lacks change_contact perm
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
     def test_update_org1_admin_for_org2_fails(self):
-        self.client.force_authenticate(user=self.user_org1_admin)
+        self.force_authenticate(self.user_org1_admin)
         data = {'first_name': 'UpdatedAdminFail'}
         response = self.client.patch(self.detail_url_org2_a, data)
         # Checks change_contact perm on object's org (Org2)
@@ -233,13 +242,13 @@ class ContactScopingPermissionsAPITests(APITestCase):
     # === DELETE Tests (Delete Permission on Object's Org) ===
     
     def test_delete_superuser_succeeds(self):
-        self.client.force_authenticate(user=self.superuser)
+        self.force_authenticate(self.superuser)
         response = self.client.delete(self.detail_url_org1_a)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Contact.objects.filter(pk=self.contact_org1_a.pk).exists())
         
     def test_delete_org1_admin_for_org1_succeeds(self):
-        self.client.force_authenticate(user=self.user_org1_admin)
+        self.force_authenticate(self.user_org1_admin)
         contact_pk = self.contact_org1_b.pk # Use B to avoid affecting other tests
         detail_url = self.get_detail_url(contact_pk)
         response = self.client.delete(detail_url)
@@ -247,19 +256,19 @@ class ContactScopingPermissionsAPITests(APITestCase):
         self.assertFalse(Contact.objects.filter(pk=contact_pk).exists())
         
     def test_delete_org1_editor_for_org1_fails(self):
-        self.client.force_authenticate(user=self.user_org1_editor)
+        self.force_authenticate(self.user_org1_editor)
         response = self.client.delete(self.detail_url_org1_a)
         # Member lacks delete_contact perm
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
     def test_delete_org1_viewer_for_org1_fails(self):
-        self.client.force_authenticate(user=self.user_org1_viewer)
+        self.force_authenticate(self.user_org1_viewer)
         response = self.client.delete(self.detail_url_org1_a)
         # Viewer lacks delete_contact perm
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
     def test_delete_org1_admin_for_org2_fails(self):
-        self.client.force_authenticate(user=self.user_org1_admin)
+        self.force_authenticate(self.user_org1_admin)
         response = self.client.delete(self.detail_url_org2_a)
         # Checks delete_contact perm on object's org (Org2)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

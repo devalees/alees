@@ -20,6 +20,8 @@ class OrganizationScopedSerializerMixin(serializers.Serializer):
     Assumes the user context is available via `self.context['request'].user`.
     Assumes the underlying model has an 'organization' foreign key.
     Adds an 'organization' field to the serializer if not already present.
+    
+    Note: Superusers bypass organization validation checks.
     """
 
     # Define the organization field - can be overridden by subclasses if needed
@@ -37,6 +39,8 @@ class OrganizationScopedSerializerMixin(serializers.Serializer):
         Validates user context and sets internal org ID for single-org users on create.
         Does NOT validate organization input (field is read-only in mixin).
         Inheriting serializers MUST handle input validation if they make the field writable.
+        
+        Superusers bypass organization validation checks.
         """
         attrs = super().validate(attrs)
         request = self.context.get('request')
@@ -44,6 +48,14 @@ class OrganizationScopedSerializerMixin(serializers.Serializer):
             raise PermissionDenied(_("User context not found in serializer."))
 
         user = request.user
+        
+        # Superusers bypass organization validation
+        if user.is_superuser:
+            logger.debug("Superuser bypassing organization validation in serializer")
+            # Still remove the read-only field from attrs if present
+            attrs.pop('organization', None)
+            return attrs
+            
         is_update = self.instance is not None
 
         active_org_ids, is_single_org = get_user_request_context(user)
@@ -71,7 +83,21 @@ class OrganizationScopedSerializerMixin(serializers.Serializer):
         Sets the organization automatically for single-org users before saving.
         Ensures organization_id is present in validated_data.
         Actual object creation is deferred to the inheriting class or super().create().
+        
+        Superusers can create resources in any organization.
         """
+        request = self.context.get('request')
+        user = request.user if request and hasattr(request, 'user') else None
+        
+        # Special handling for superusers
+        if user and user.is_superuser:
+            # Superusers can explicitly set organization_id if provided in validated_data
+            # or it will be handled by the model's default behavior
+            logger.debug("Superuser creating resource: %s", validated_data)
+            # Remove the potentially passed 'organization' attribute if it exists
+            validated_data.pop('organization', None)
+            return None  # Let inheriting serializer handle actual creation
+        
         # Retrieve the validated/determined org ID from the validate method
         org_id = getattr(self, '_validated_organization_id', None)
 

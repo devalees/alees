@@ -6,6 +6,10 @@ from .models import FileStorage
 from api.v1.base_models.user.serializers import UserSimpleSerializer
 from api.v1.base_models.organization.models import Organization
 from api.v1.base_models.organization.serializers import OrganizationSimpleSerializer
+# Import OrganizationScopedSerializerMixin
+from core.serializers.mixins import OrganizationScopedSerializerMixin
+# Import has_perm_in_org from core.rbac.permissions
+from core.rbac.permissions import has_perm_in_org
 
 # Assume this permission checking function exists elsewhere and can be imported
 # from core.permissions import has_perm_in_org 
@@ -20,7 +24,7 @@ def has_perm_in_org(user, perm, organization):
 
 class FileUploadSerializer(serializers.ModelSerializer):
     """Serializer specifically for handling file uploads."""
-    # We might need to accept organization ID during upload
+    # We need to accept organization ID during upload
     organization = serializers.PrimaryKeyRelatedField(
         queryset=Organization.objects.all(), 
         write_only=True # Usually we don't show the full org details on upload response
@@ -34,12 +38,21 @@ class FileUploadSerializer(serializers.ModelSerializer):
         # Other fields like original_filename, mime_type, size are set by model/storage
 
 
-class FileStorageSerializer(TaggitSerializer, serializers.ModelSerializer):
+class FileStorageSerializer(OrganizationScopedSerializerMixin, TaggitSerializer, serializers.ModelSerializer):
     """Serializer for the FileStorage model."""
     
     tags = TagListSerializerField(required=False)
     uploaded_by = UserSimpleSerializer(read_only=True)
+    # We inherit organization field from OrganizationScopedSerializerMixin
+    # But we customize it to use OrganizationSimpleSerializer for read responses
     organization = OrganizationSimpleSerializer(read_only=True)
+    # Add writeable organization_id field for tests
+    organization_id = serializers.PrimaryKeyRelatedField(
+        queryset=Organization.objects.all(),
+        source='organization',
+        required=False,
+        write_only=True
+    )
     
     # Custom method fields
     download_url = serializers.SerializerMethodField()
@@ -56,7 +69,8 @@ class FileStorageSerializer(TaggitSerializer, serializers.ModelSerializer):
             'uploaded_by', 
             'tags', 
             'custom_fields',
-            'organization', 
+            'organization',
+            'organization_id', 
             'created_at',
             'updated_at',
             # Added fields
@@ -84,8 +98,7 @@ class FileStorageSerializer(TaggitSerializer, serializers.ModelSerializer):
             return None
 
         user = request.user
-        # Permission check using the (mocked or real) function
-        # Adjust permission codename as needed (e.g., 'file_storage.view_filestorage')
+        # Permission check using has_perm_in_org from the RBAC system
         perm_code = 'file_storage.view_filestorage' 
         if has_perm_in_org(user, perm_code, obj.organization):
             if obj.file:

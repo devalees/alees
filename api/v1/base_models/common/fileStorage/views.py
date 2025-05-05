@@ -8,6 +8,11 @@ from .models import FileStorage
 from .serializers import FileStorageSerializer, FileUploadSerializer 
 from api.v1.base_models.organization.models import Organization, OrganizationMembership
 
+# Import core viewset mixin and permission class
+from core.viewsets.mixins import OrganizationScopedViewSetMixin
+from core.rbac.drf_permissions import HasModelPermissionInOrg
+from core.rbac.permissions import has_perm_in_org
+
 # Assume this permission checking function exists elsewhere and can be imported
 # from core.permissions import has_perm_in_org 
 # For now, we'll mock it in tests
@@ -61,6 +66,7 @@ class HasModelPermissionInOrgPlaceholder(permissions.BasePermission):
         # Check if the authenticated user has the standard Django permission
         return request.user and request.user.is_authenticated and request.user.has_perm(perm_code)
 
+# --- FileUploadView Definition ---
 class FileUploadView(generics.CreateAPIView):
     """
     Handles file uploads. Requires authentication.
@@ -121,28 +127,6 @@ class FileUploadView(generics.CreateAPIView):
 # --- FileStorageViewSet Definition ---
 from rest_framework import viewsets, mixins
 
-# Assuming this mixin exists and correctly filters by request.user.organization
-# TODO: Verify or implement OrganizationScopedViewSetMixin if it doesn't exist
-# from core.views import OrganizationScopedViewSetMixin 
-class OrganizationScopedViewSetMixin: # Placeholder implementation
-    def get_queryset(self):
-        qs = super().get_queryset()
-        user = self.request.user
-        
-        if user.is_authenticated:
-            # Attempt to get the user's primary/first active organization membership
-            membership = OrganizationMembership.objects.filter(
-                user=user, 
-                is_active=True
-            ).select_related('organization').first()
-            
-            if membership and membership.organization:
-                # Filter the main queryset by the user's organization
-                return qs.filter(organization=membership.organization)
-        
-        # If no organization found or user not authenticated, return empty queryset
-        return qs.none() 
-
 class FileStorageViewSet(OrganizationScopedViewSetMixin, 
                          mixins.RetrieveModelMixin, 
                          mixins.ListModelMixin, 
@@ -156,7 +140,7 @@ class FileStorageViewSet(OrganizationScopedViewSetMixin,
     serializer_class = FileStorageSerializer
     permission_classes = [
         permissions.IsAuthenticated, 
-        HasModelPermissionInOrgPlaceholder # Using placeholder permission check
+        HasModelPermissionInOrg # Use RBAC permission class
     ] 
     filterset_fields = ['mime_type', 'tags__name'] # Requires django-filter setup
     search_fields = ['original_filename', 'uploaded_by__username'] # Requires SearchFilter
@@ -164,26 +148,10 @@ class FileStorageViewSet(OrganizationScopedViewSetMixin,
     # Override perform_destroy for physical file deletion
     def perform_destroy(self, instance):
         """Delete the physical file before deleting the database record."""
-        print(f"\nDEBUG: perform_destroy called for instance PK: {instance.pk}") # DEBUG
-        print(f"DEBUG: instance.file object: {instance.file}") # DEBUG
-        print(f"DEBUG: instance.file.name: {instance.file.name}") # DEBUG
-        print(f"DEBUG: instance.file.storage: {instance.file.storage}") # DEBUG
-        
-        # Permission check should ideally be handled entirely by permission_classes.
-        # This check inside perform_destroy is a redundant safeguard.
-        perm_code = 'file_storage.delete_filestorage'
-        if not self.request.user.has_perm(perm_code):
-             # Check the basic Django permission using the placeholder logic
-             # A real RBAC check would use: 
-             # if not has_perm_in_org(self.request.user, perm_code, instance.organization):
-             raise PermissionDenied(_("You do not have permission to delete this file."))
-        
+        # Permission check should be handled by permission_classes
         # Delete the physical file from storage
-        print("DEBUG: Calling instance.file.delete(save=False)") # DEBUG
-        instance.file.delete(save=False)
-        print("DEBUG: Called instance.file.delete(save=False)") # DEBUG
+        if instance.file:
+            instance.file.delete(save=False)
         
         # Proceed with deleting the database record
-        print("DEBUG: Calling super().perform_destroy(instance)") # DEBUG
         super().perform_destroy(instance)
-        print("DEBUG: Called super().perform_destroy(instance)") # DEBUG
