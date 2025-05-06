@@ -8,6 +8,7 @@ from .status.views import StatusViewSet
 from .currency.views import CurrencyViewSet
 from .category.views import CategoryViewSet # Import CategoryViewSet
 from .tag.views import TagViewSet # Import TagViewSet
+from .taxes.views import TaxJurisdictionViewSet, TaxCategoryViewSet, TaxRateViewSet # Import Tax ViewSets
 # Import Auth views
 from .auth.views import (
     CustomTokenObtainPairView,
@@ -43,6 +44,11 @@ router.register(r'categories', CategoryViewSet, basename='category')
 
 # Register Tag ViewSet
 router.register(r'tags', TagViewSet, basename='tag')
+
+# Register Tax ViewSets
+router.register(r'taxes/jurisdictions', TaxJurisdictionViewSet, basename='taxjurisdiction')
+router.register(r'taxes/categories', TaxCategoryViewSet, basename='taxcategory')
+router.register(r'taxes/rates', TaxRateViewSet, basename='taxrate')
 
 # Register other common ViewSets (Commented out)
 # router.register(r'addresses', AddressViewSet, basename='address')
