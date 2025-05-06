@@ -3,7 +3,7 @@ import pytest
 from django.db import IntegrityError
 # Correct relative import for models and factories
 from ...models import Status
-from ..factories import StatusFactory
+from ..factories import StatusFactory, CategoryFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -42,14 +42,15 @@ def test_status_name_unique():
 
 def test_status_optional_fields():
     """Test setting optional fields."""
+    category = CategoryFactory(name='Specific Cat')
     status = StatusFactory(
         description='A specific description',
-        category='Specific Cat',
+        category=category,
         color='#123456',
         custom_fields={'key': 'value'}
     )
     assert status.description == 'A specific description'
-    assert status.category == 'Specific Cat'
+    assert status.category == category
     assert status.color == '#123456'
     assert status.custom_fields == {'key': 'value'}
 
