@@ -40,6 +40,7 @@ LOCAL_APPS = [
     'api.v1.base_models.common.currency.apps.CurrencyConfig',  # Added currency app
     'api.v1.base_models.common.status.apps.StatusConfig',  # Added status app
     'api.v1.base_models.common.fileStorage.apps.FileStorageConfig', # Added fileStorage app
+    'api.v1.base_models.common.tag.apps.TagConfig',  # Added tag app
     'api.v1.base_models.contact.apps.ContactConfig',
     'api.v1.base_models.organization.apps.OrganizationConfig',
     'api.v1.base_models.user.apps.UserConfig',

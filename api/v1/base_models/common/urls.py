@@ -7,6 +7,7 @@ from .uom.views import UomTypeViewSet, UnitOfMeasureViewSet
 from .status.views import StatusViewSet
 from .currency.views import CurrencyViewSet
 from .category.views import CategoryViewSet # Import CategoryViewSet
+from .tag.views import TagViewSet # Import TagViewSet
 # Import Auth views
 from .auth.views import (
     CustomTokenObtainPairView,
@@ -39,6 +40,9 @@ router.register(r'file-storage/files', FileStorageViewSet, basename='file')
 
 # Register Category ViewSet
 router.register(r'categories', CategoryViewSet, basename='category')
+
+# Register Tag ViewSet
+router.register(r'tags', TagViewSet, basename='tag')
 
 # Register other common ViewSets (Commented out)
 # router.register(r'addresses', AddressViewSet, basename='address')

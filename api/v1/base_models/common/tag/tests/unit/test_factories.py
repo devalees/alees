@@ -19,4 +19,20 @@ def test_tag_factory():
     # Test uniqueness with get_or_create
     tag2 = TagFactory(name=tag.name)
     assert tag2.id == tag.id
-    assert Tag.objects.count() == 1 
+    assert Tag.objects.count() == 1
+
+
+def test_tag_no_organization_required():
+    """
+    Test that Tag model works without organization scoping.
+    The Tag model should not have an organization field.
+    """
+    tag = TagFactory()
+    
+    # Verify Tag model doesn't have organization field
+    assert not hasattr(tag, 'organization')
+    
+    # Create a new tag directly to verify no organization needed
+    new_tag = Tag.objects.create(name="Test Tag")
+    assert new_tag.name == "Test Tag"
+    assert new_tag.slug == "test-tag" 
