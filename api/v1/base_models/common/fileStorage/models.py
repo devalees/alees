@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from taggit.managers import TaggableManager
 
 from core.models import Timestamped, Auditable, OrganizationScoped
+from core.rbac.permissions import has_perm_in_org
 
 
 def get_file_upload_path(instance, filename):
@@ -93,28 +94,19 @@ class FileStorage(Timestamped, Auditable, OrganizationScoped):
         return None
 
     def get_secure_url(self, requesting_user):
-        """Placeholder for returning a secure URL after permission checks.
+        """Returns a secure URL after permission checks.
 
-        Permission logic will be implemented primarily in serializers/views.
-        This method currently returns the standard URL if the file exists.
-        Requires the `requesting_user` parameter for future permission checks.
+        Checks if the requesting user has permission to view this file.
+        Returns the URL if the user has permission, otherwise returns None.
         """
-        # TODO: Implement permission check logic here or confirm it's handled
-        # solely in serializer/view based on final design.
-        # Example check (needs RBAC function):
-        # if has_perm_in_org(requesting_user, 'common.view_filestorage', self.organization):
-        #     if self.file:
-        #         try: return self.file.url
-        #         except ValueError: return None
-        # return None
-
-        # Placeholder implementation (returns URL if file exists):
-        if self.file:
-            try:
-                return self.file.url
-            except ValueError:
-                # Handle cases where storage backend is misconfigured or file not saved.
-                return None
+        # Check if user has permission to view files in this organization
+        if has_perm_in_org(requesting_user, 'view_filestorage', self.organization):
+            if self.file:
+                try:
+                    return self.file.url
+                except ValueError:
+                    # Handle cases where storage backend is misconfigured or file not saved
+                    return None
         return None
 
     def save(self, *args, **kwargs):

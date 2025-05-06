@@ -38,14 +38,12 @@ def user_in_org(db, organization, default_role):
     # Create a user 
     user = UserFactory()
     # Explicitly create an active membership linking user and organization
-    OrganizationMembershipFactory.create(
+    membership = OrganizationMembershipFactory.create(
         user=user,
         organization=organization,
-        role=default_role, # Assign a role
         is_active=True
     )
-    # Refresh user instance if needed (though membership is separate)
-    # user.refresh_from_db() 
+    membership.roles.add(default_role)
     # Return both user and their role for permission assignment
     return user, default_role
 
@@ -115,7 +113,7 @@ class TestFileUploadView:
         response = api_client.post(upload_url, data, format='multipart')
         assert response.status_code == status.HTTP_403_FORBIDDEN
         # Ensure the mock was called
-        mock_perm_check.assert_called_once_with(user, 'file_storage.add_filestorage', organization)
+        mock_perm_check.assert_called_once_with(user, 'add_filestorage', organization)
 
     def test_upload_unauthenticated(self, api_client, upload_url, test_file, organization):
         """Test file upload fails for unauthenticated users."""
@@ -218,12 +216,12 @@ class TestFileUploadView:
         
         # Create a second organization for the user to make them a multi-org user
         second_org = OrganizationFactory()
-        OrganizationMembershipFactory.create(
+        membership = OrganizationMembershipFactory.create(
             user=user,
             organization=second_org,
-            role=role,
             is_active=True
         )
+        membership.roles.add(role)
         
         # Data for the POST request - omit organization field
         data = {
@@ -318,7 +316,7 @@ class TestFileStorageViewSet:
         assert response.data['id'] == file_instance.id
         assert response.data['original_filename'] == file_instance.original_filename
         assert response.data['download_url'] is not None # Should get URL with perm
-        mock_perm_check.assert_called_once_with(user, 'file_storage.view_filestorage', file_instance.organization)
+        mock_perm_check.assert_called_once_with(user, 'view_filestorage', file_instance.organization)
 
     # Use patch to simulate permission checks for download URL generation
     @patch('api.v1.base_models.common.fileStorage.serializers.has_perm_in_org')
@@ -336,7 +334,7 @@ class TestFileStorageViewSet:
         assert response.status_code == status.HTTP_200_OK
         assert response.data['id'] == file_instance.id
         assert response.data['download_url'] is None # Should NOT get URL without perm
-        mock_perm_check.assert_called_once_with(user, 'file_storage.view_filestorage', file_instance.organization)
+        mock_perm_check.assert_called_once_with(user, 'view_filestorage', file_instance.organization)
 
     def test_retrieve_no_view_permission(self, api_client, user_in_org, file_instance, detail_url):
         """Test RETRIEVE endpoint fails without view permission for the object."""

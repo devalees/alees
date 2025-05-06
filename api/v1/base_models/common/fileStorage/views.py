@@ -13,59 +13,6 @@ from core.viewsets.mixins import OrganizationScopedViewSetMixin
 from core.rbac.drf_permissions import HasModelPermissionInOrg
 from core.rbac.permissions import has_perm_in_org
 
-# Assume this permission checking function exists elsewhere and can be imported
-# from core.permissions import has_perm_in_org 
-# For now, we'll mock it in tests
-def has_perm_in_org(user, perm, organization):
-    # Placeholder/Mock implementation for initial setup
-    print(f"Permission check mock: User {user}, Perm {perm}, Org {organization}")
-    # Default to True for upload view tests for now, will be properly mocked
-    return True 
-
-# --- Placeholder Permission Class ---
-class HasModelPermissionInOrgPlaceholder(permissions.BasePermission):
-    """Placeholder: Checks standard Django model perms, NOT org-aware yet."""
-    # Maps view actions to required Django permission codenames
-    action_perms_map = {
-        'list': '%(app_label)s.view_%(model_name)s',
-        'retrieve': '%(app_label)s.view_%(model_name)s',
-        'destroy': '%(app_label)s.delete_%(model_name)s',
-        # Add 'create', 'update', 'partial_update' if needed
-    }
-
-    def has_permission(self, request, view):
-        # Get the required permission string for the current action
-        # Uses the view's queryset model to determine app_label/model_name
-        model_cls = view.queryset.model
-        kwargs = {
-            'app_label': model_cls._meta.app_label,
-            'model_name': model_cls._meta.model_name
-        }
-        perm_code = self.action_perms_map.get(view.action) % kwargs if view.action in self.action_perms_map else None
-        
-        if not perm_code:
-            # No permission defined for this action, allow (or deny based on policy)
-            return True 
-
-        # Check if the authenticated user has the standard Django permission
-        return request.user and request.user.is_authenticated and request.user.has_perm(perm_code)
-
-    def has_object_permission(self, request, view, obj):
-        # For detail views, check the same permission again (redundant with above but safe)
-        # A real org-aware check would use the 'obj.organization' here.
-        model_cls = view.queryset.model
-        kwargs = {
-            'app_label': model_cls._meta.app_label,
-            'model_name': model_cls._meta.model_name
-        }
-        perm_code = self.action_perms_map.get(view.action) % kwargs if view.action in self.action_perms_map else None
-        
-        if not perm_code:
-            return True
-            
-        # Check if the authenticated user has the standard Django permission
-        return request.user and request.user.is_authenticated and request.user.has_perm(perm_code)
-
 # --- FileUploadView Definition ---
 class FileUploadView(generics.CreateAPIView):
     """
@@ -112,7 +59,7 @@ class FileUploadView(generics.CreateAPIView):
                 raise PermissionDenied(_("Organization must be specified for upload when you belong to multiple organizations."))
 
         # --- Organization-Aware Permission Check --- 
-        perm_code = 'file_storage.add_filestorage' # Use the correct permission codename
+        perm_code = 'add_filestorage' # Use the correct permission codename
         if not has_perm_in_org(user, perm_code, organization):
             raise PermissionDenied(_("You do not have permission to upload files to this organization."))
 

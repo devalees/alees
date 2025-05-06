@@ -11,17 +11,6 @@ from core.serializers.mixins import OrganizationScopedSerializerMixin
 # Import has_perm_in_org from core.rbac.permissions
 from core.rbac.permissions import has_perm_in_org
 
-# Assume this permission checking function exists elsewhere and can be imported
-# from core.permissions import has_perm_in_org 
-# For now, we'll mock it in tests
-def has_perm_in_org(user, perm, organization):
-    # Placeholder/Mock implementation for initial setup
-    # In real scenario, this would call the actual RBAC logic
-    print(f"Permission check mock: User {user}, Perm {perm}, Org {organization}")
-    # Default to False for safety until real function is integrated and tested
-    # Tests will specifically mock this to return True/False as needed.
-    return False 
-
 class FileUploadSerializer(serializers.ModelSerializer):
     """Serializer specifically for handling file uploads."""
     # We need to accept organization ID during upload
@@ -100,7 +89,7 @@ class FileStorageSerializer(OrganizationScopedSerializerMixin, TaggitSerializer,
 
         user = request.user
         # Permission check using has_perm_in_org from the RBAC system
-        perm_code = 'file_storage.view_filestorage' 
+        perm_code = 'view_filestorage' 
         if has_perm_in_org(user, perm_code, obj.organization):
             if obj.file:
                 try:
