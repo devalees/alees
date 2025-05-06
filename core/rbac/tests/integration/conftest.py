@@ -3,6 +3,7 @@ from django.contrib.auth.models import Permission
 from django.contrib.contenttypes.models import ContentType
 from django.db.utils import IntegrityError
 from rest_framework.test import APIClient
+from django.contrib.auth.models import Group
 
 # Import factories (adjust path as needed)
 from api.v1.base_models.organization.tests.factories import (
@@ -68,14 +69,18 @@ def permission_view():
 def user_a(org_a, permission_change, permission_view):
     user = UserFactory(username="user_a_integration")
     membership = OrganizationMembershipFactory(user=user, organization=org_a)
-    membership.role.permissions.add(permission_change, permission_view)
+    role = Group.objects.create(name="Test Role A")
+    role.permissions.add(permission_change, permission_view)
+    membership.roles.add(role)
     return user
 
 @pytest.fixture
 def user_b(org_b, permission_view):
     user = UserFactory(username="user_b_integration")
     membership = OrganizationMembershipFactory(user=user, organization=org_b)
-    membership.role.permissions.add(permission_view)
+    role = Group.objects.create(name="Test Role B")
+    role.permissions.add(permission_view)
+    membership.roles.add(role)
     return user
 
 @pytest.fixture

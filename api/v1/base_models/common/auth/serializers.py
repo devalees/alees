@@ -46,13 +46,15 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                         user=user,
                         organization_id__in=active_org_ids, # Only fetch for active orgs
                         is_active=True # Explicitly ensure membership is active
-                    ).select_related('role').prefetch_related('role__permissions')
+                    ).prefetch_related('roles', 'roles__permissions')
 
                     for membership in memberships:
                         org_id = membership.organization_id
                         perms_set = set()
-                        if membership.role:
-                            perms_set = set(membership.role.permissions.values_list('codename', flat=True))
+                        # Get permissions from all roles assigned to this membership
+                        for role in membership.roles.all():
+                            perms_set.update(role.permissions.values_list('codename', flat=True))
+                            
                         perm_cache_key = f'rbac:perms:user:{user.pk}:org:{org_id}'
                         permission_cache.set(perm_cache_key, perms_set, timeout=CACHE_TIMEOUT)
                         logger.info(f"Cached permissions for user {user.pk}, org {org_id}: {perms_set}")

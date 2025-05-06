@@ -59,7 +59,32 @@ class OrganizationMembershipFactory(factory.django.DjangoModelFactory):
     # Use string paths to break potential circular imports
     user = factory.SubFactory('api.v1.base_models.user.tests.factories.UserFactory')
     organization = factory.SubFactory(OrganizationFactory)
-    role = factory.SubFactory(GroupFactory)
     is_active = True
     created_by = factory.SubFactory('api.v1.base_models.user.tests.factories.UserFactory')
-    updated_by = factory.SubFactory('api.v1.base_models.user.tests.factories.UserFactory') 
+    updated_by = factory.SubFactory('api.v1.base_models.user.tests.factories.UserFactory')
+    
+    # Handle the M2M relationship with roles
+    @factory.post_generation
+    def roles(self, create, extracted, **kwargs):
+        if not create:
+            # Simple build, do nothing.
+            return
+
+        # Handle both old 'role' attribute and direct roles parameter
+        if hasattr(self, '_role') and self._role:
+            self.roles.add(self._role)
+            return
+            
+        # If roles were passed directly
+        if extracted:
+            # Add the roles as specified
+            for role in extracted:
+                self.roles.add(role)
+    
+    # For backward compatibility with tests that use role=... in OrganizationMembershipFactory(...)
+    @factory.post_generation
+    def role(self, create, extracted, **kwargs):
+        if create and extracted:
+            # Store for use in roles post_generation
+            self._role = extracted
+            self.roles.add(extracted) 

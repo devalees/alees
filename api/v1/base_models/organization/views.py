@@ -147,18 +147,18 @@ class OrganizationMembershipFilter(FilterSet):
         fields = {
             'user': ['exact'],
             'organization': ['exact'],
-            'role': ['exact'],
+            'roles': ['exact'],
             'is_active': ['exact'],
         }
 
 class OrganizationMembershipViewSet(viewsets.ModelViewSet):
     """ViewSet for OrganizationMembership model, integrated with RBAC"""
     
-    queryset = OrganizationMembership.objects.select_related('user', 'organization', 'role').all()
+    queryset = OrganizationMembership.objects.select_related('user', 'organization').prefetch_related('roles').all()
     serializer_class = OrganizationMembershipSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = OrganizationMembershipFilter
-    search_fields = ['user__username', 'organization__name', 'role__name']
+    search_fields = ['user__username', 'organization__name', 'roles__name']
     ordering_fields = ['created_at', 'updated_at']
     ordering = ['-created_at']
 

@@ -55,13 +55,15 @@ def get_user_request_context(user):
                     user=user,
                     organization_id__in=cached_ids, # Already filtered for active orgs
                     is_active=True # Double check active membership here
-                ).select_related('role').prefetch_related('role__permissions')
+                ).prefetch_related('roles', 'roles__permissions')
 
                 for membership in memberships:
                     org_id = membership.organization_id
                     perms_set = set()
-                    if membership.role:
-                        perms_set = set(membership.role.permissions.values_list('codename', flat=True))
+                    # Collect permissions from all roles
+                    for role in membership.roles.all():
+                        perms_set.update(role.permissions.values_list('codename', flat=True))
+                    
                     perm_cache_key = f'rbac:perms:user:{user.pk}:org:{org_id}'
                     # Use the specific 'rbac' cache alias for permissions
                     permission_cache.set(perm_cache_key, perms_set, timeout=CACHE_TIMEOUT)

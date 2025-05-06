@@ -25,7 +25,7 @@ def _invalidate_user_active_org_ids_cache(user_pk):
 
 @receiver(post_save, sender=OrganizationMembership)
 def invalidate_on_membership_save(sender, instance: OrganizationMembership, **kwargs):
-    """Invalidate cache when an OrganizationMembership is saved (role or active status changes)."""
+    """Invalidate cache when an OrganizationMembership is saved (active status changes)."""
     if instance.user_id:
         # Invalidate specific perm cache for the affected org (if active)
         if instance.organization_id:
@@ -43,13 +43,21 @@ def invalidate_on_membership_delete(sender, instance: OrganizationMembership, **
         # Always invalidate the user's list of active orgs
         _invalidate_user_active_org_ids_cache(instance.user_id)
 
+@receiver(m2m_changed, sender=OrganizationMembership.roles.through)
+def invalidate_on_membership_roles_change(sender, instance: OrganizationMembership, action: str, pk_set: set, **kwargs):
+    """Invalidate cache when roles for a membership change."""
+    if action in ['post_add', 'post_remove', 'post_clear']:
+        if instance.user_id and instance.organization_id:
+            # Invalidate permission cache for this user/org combination
+            _invalidate_user_org_perm_cache(instance.user_id, instance.organization_id)
+
 @receiver(m2m_changed, sender=Group.permissions.through)
 def invalidate_on_role_permission_change(sender, instance: Group, action: str, pk_set: set, **kwargs):
     """Invalidate cache when permissions for a Role (Group) change."""
     if action in ['post_add', 'post_remove', 'post_clear']:
         # Find all active memberships using this role (Group)
         memberships = OrganizationMembership.objects.filter(
-            role=instance, is_active=True
+            roles=instance, is_active=True
         ).values_list('user_id', 'organization_id')
         
         # Invalidate cache for each affected user/org combination

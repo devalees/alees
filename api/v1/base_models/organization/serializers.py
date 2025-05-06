@@ -151,11 +151,11 @@ class OrganizationMembershipSerializer(serializers.ModelSerializer):
     
     user_detail = serializers.SerializerMethodField(read_only=True)
     organization_detail = serializers.SerializerMethodField(read_only=True)
-    role_detail = serializers.SerializerMethodField(read_only=True)
+    roles_detail = serializers.SerializerMethodField(read_only=True)
 
     user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
     organization = serializers.PrimaryKeyRelatedField(queryset=Organization.objects.all())
-    role = serializers.PrimaryKeyRelatedField(queryset=Group.objects.all())
+    roles = serializers.PrimaryKeyRelatedField(queryset=Group.objects.all(), many=True)
 
     class Meta:
         model = OrganizationMembership
@@ -165,8 +165,8 @@ class OrganizationMembershipSerializer(serializers.ModelSerializer):
             'user_detail',
             'organization',
             'organization_detail',
-            'role',
-            'role_detail',
+            'roles',
+            'roles_detail',
             'is_active',
             'created_at',
             'updated_at',
@@ -197,24 +197,17 @@ class OrganizationMembershipSerializer(serializers.ModelSerializer):
             'code': obj.organization.code
         }
 
-    def get_role_detail(self, obj):
-        """Return nested role data, handling cases where role is None."""
-        if obj.role: # Check if role exists
-            return {
-                'id': obj.role.id,
-                'name': obj.role.name
+    def get_roles_detail(self, obj):
+        """Return nested roles data as a list"""
+        return [
+            {
+                'id': role.id,
+                'name': role.name
             }
-        return None # Return None or an empty dict if role is not assigned
+            for role in obj.roles.all()
+        ]
 
     def validate(self, attrs):
-        """Validate that the user is not already a member of the organization with the same role"""
-        if self.instance is None:  # Only check for new instances
-            if OrganizationMembership.objects.filter(
-                user=attrs['user'],
-                organization=attrs['organization'],
-                role=attrs['role']
-            ).exists():
-                raise serializers.ValidationError(
-                    "User is already a member of this organization with this role"
-                )
+        """Validate the membership data"""
+        # The unique constraint on user+organization will handle duplicate memberships
         return attrs 

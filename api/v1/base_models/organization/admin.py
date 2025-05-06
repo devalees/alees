@@ -23,10 +23,16 @@ class OrganizationAdmin(DraggableMPTTAdmin):
 
 @admin.register(OrganizationMembership)
 class OrganizationMembershipAdmin(admin.ModelAdmin):
-    list_display = ('user', 'organization', 'role', 'is_active', 'updated_at')
-    list_filter = ('organization', 'role', 'is_active')
-    search_fields = ('user__username', 'organization__name', 'role__name')
-    list_select_related = ('user', 'organization', 'role')
-    raw_id_fields = ('user', 'organization', 'role')  # Better for large numbers
-    list_editable = ('is_active', 'role')
-    readonly_fields = ('created_at', 'created_by', 'updated_at', 'updated_by') 
+    list_display = ('user', 'organization', 'get_roles_display', 'is_active', 'updated_at')
+    list_filter = ('organization', 'is_active')
+    search_fields = ('user__username', 'organization__name', 'roles__name')
+    list_select_related = ('user', 'organization')
+    raw_id_fields = ('user', 'organization')  # Better for large numbers
+    list_editable = ('is_active',)
+    readonly_fields = ('created_at', 'created_by', 'updated_at', 'updated_by')
+    filter_horizontal = ('roles',)  # Add this to make it easier to manage multiple roles
+    
+    def get_roles_display(self, obj):
+        """Display roles as a comma-separated string."""
+        return ", ".join([role.name for role in obj.roles.all()])
+    get_roles_display.short_description = 'Roles' 

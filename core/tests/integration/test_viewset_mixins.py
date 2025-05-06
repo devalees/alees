@@ -99,42 +99,43 @@ def user_no_orgs(db):
 def user_org_a(db, org_a, role_viewer_org_a):
     user = UserFactory()
     # Create membership directly
-    OrganizationMembership.objects.create(
+    membership = OrganizationMembership.objects.create(
         user=user,
         organization=org_a,
-        role=role_viewer_org_a,
         is_active=True # Ensure membership is active
     )
+    membership.roles.add(role_viewer_org_a)
     return user
 
 @pytest.fixture
 def user_org_b(db, org_b, role_viewer_org_b):
     user = UserFactory()
     # Create membership directly
-    OrganizationMembership.objects.create(
+    membership = OrganizationMembership.objects.create(
         user=user,
         organization=org_b,
-        role=role_viewer_org_b,
         is_active=True
     )
+    membership.roles.add(role_viewer_org_b)
     return user
 
 @pytest.fixture
 def user_org_a_b(db, org_a, org_b, role_viewer_org_a, role_viewer_org_b):
     user = UserFactory()
     # Create multiple memberships
-    OrganizationMembership.objects.create(
+    membership_a = OrganizationMembership.objects.create(
         user=user,
         organization=org_a,
-        role=role_viewer_org_a,
         is_active=True
     )
-    OrganizationMembership.objects.create(
+    membership_a.roles.add(role_viewer_org_a)
+    
+    membership_b = OrganizationMembership.objects.create(
         user=user,
         organization=org_b,
-        role=role_viewer_org_b,
         is_active=True
     )
+    membership_b.roles.add(role_viewer_org_b)
     return user
 
 @pytest.fixture

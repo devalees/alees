@@ -51,7 +51,8 @@ def test_login_populates_rbac_cache_single_org(client, view_group_perm):
     role.permissions.add(view_group_perm)
 
     # Create active membership
-    membership = OrganizationMembershipFactory(user=user, organization=org, role=role, is_active=True)
+    membership = OrganizationMembershipFactory(user=user, organization=org, is_active=True)
+    membership.roles.add(role)
 
     # Use absolute path reverse lookup (adjust based on actual root inclusion)
     # Assuming common.urls is included within api.v1 path
@@ -98,12 +99,17 @@ def test_login_populates_rbac_cache_multi_org(client, change_group_perm, view_gr
     role2.permissions.add(view_group_perm)
 
     # Create active memberships
-    membership1 = OrganizationMembershipFactory(user=user, organization=org1, role=role1, is_active=True)
-    membership2 = OrganizationMembershipFactory(user=user, organization=org2, role=role2, is_active=True)
+    membership1 = OrganizationMembershipFactory(user=user, organization=org1, is_active=True)
+    membership1.roles.add(role1)
+    
+    membership2 = OrganizationMembershipFactory(user=user, organization=org2, is_active=True)
+    membership2.roles.add(role2)
+    
     # Create an inactive membership - should be ignored
     org3 = OrganizationFactory()
     role3 = Group.objects.create(name='TestInactiveRoleMulti')
-    membership3 = OrganizationMembershipFactory(user=user, organization=org3, role=role3, is_active=False)
+    membership3 = OrganizationMembershipFactory(user=user, organization=org3, is_active=False)
+    membership3.roles.add(role3)
 
     login_url = reverse('v1:base_models:common:token_obtain_pair') # Try full inferred path
 

@@ -100,14 +100,19 @@ def has_perm_in_org(
 
     # Find active membership for this specific org
     try:
-        membership = OrganizationMembership.objects.select_related('role') \
-                                             .prefetch_related('role__permissions') \
+        membership = OrganizationMembership.objects.prefetch_related('roles__permissions') \
                                              .get(user=user, organization_id=organization_id, is_active=True)
-        logger.debug(f"[has_perm_in_org] Found membership {membership.pk} with role '{membership.role}'")
-        if membership.role:
+        logger.debug(f"[has_perm_in_org] Found membership {membership.pk}")
+        
+        # Collect permissions from all roles
+        for role in membership.roles.all():
+            logger.debug(f"[has_perm_in_org] Processing role '{role.name}'")
             # Permissions are pre-fetched
-            permissions_set = {p.codename for p in membership.role.permissions.all()}
-            logger.debug(f"[has_perm_in_org] Fetched permissions for role '{membership.role.name}': {permissions_set}")
+            role_permissions = {p.codename for p in role.permissions.all()}
+            permissions_set.update(role_permissions)
+            logger.debug(f"[has_perm_in_org] Added permissions for role '{role.name}': {role_permissions}")
+        
+        logger.debug(f"[has_perm_in_org] Combined permissions from all roles: {permissions_set}")
     except OrganizationMembership.DoesNotExist:
         logger.info(f"[has_perm_in_org] No active membership found for user {user_pk} in org {organization_id}")
         pass # permissions_set remains empty

@@ -300,6 +300,22 @@ class TestOrganizationViewSet:
         assert response.status_code == status.HTTP_204_NO_CONTENT
         assert not Organization.objects.filter(pk=organization.id).exists()
 
+    # Need to re-add audit log cleanup to delete test
+    def test_delete_organization(self, api_client, detail_url, organization, user):
+        user.user_permissions.add(get_permission(Organization, 'delete_organization'))
+        user.user_permissions.add(get_permission(Organization, 'view_organization')) # Needed for get_object check
+        OrganizationMembershipFactory(user=user, organization=organization)
+        api_client.force_authenticate(user=user)
+        org_id = organization.id # Store ID before delete
+        response = api_client.delete(detail_url)
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert not Organization.objects.filter(pk=org_id).exists()
+
+        # --- AuditLog Cleanup ---
+        from core.audit.models import AuditLog # Import here locally
+        AuditLog.objects.filter(organization_id=org_id).delete()
+        # --- End AuditLog Cleanup ---
+
     def test_list_filter_by_type_and_parent(self, api_client, list_url, organization, other_organization, org_type, parent_org, user):
         """Test LIST endpoint filtering by organization_type and parent, considering membership."""
         # Make user member of the target org 
@@ -498,22 +514,6 @@ class TestOrganizationViewSet:
         org.refresh_from_db()
         assert org.tags.count() == 0
 
-    # Need to re-add audit log cleanup to delete test
-    def test_delete_organization(self, api_client, detail_url, organization, user):
-        user.user_permissions.add(get_permission(Organization, 'delete_organization'))
-        user.user_permissions.add(get_permission(Organization, 'view_organization')) # Needed for get_object check
-        OrganizationMembershipFactory(user=user, organization=organization)
-        api_client.force_authenticate(user=user)
-        org_id = organization.id # Store ID before delete
-        response = api_client.delete(detail_url)
-        assert response.status_code == status.HTTP_204_NO_CONTENT
-        assert not Organization.objects.filter(pk=org_id).exists()
-
-        # --- AuditLog Cleanup ---
-        from core.audit.models import AuditLog # Import here locally
-        AuditLog.objects.filter(organization_id=org_id).delete()
-        # --- End AuditLog Cleanup ---
-
 @pytest.mark.django_db
 class TestOrganizationMembershipEndpoints:
     @pytest.fixture
@@ -544,23 +544,26 @@ class TestOrganizationMembershipEndpoints:
     # Test Users with RBAC Roles
     @pytest.fixture
     def org_manager_user(self, organization, org_manager_role):
-        user = UserFactory()
-        OrganizationMembershipFactory(user=user, organization=organization, role=org_manager_role)
-        # Also make them member of another org to test scope
+        user = UserFactory(username='org_manager_user')
+        membership = OrganizationMembershipFactory(user=user, organization=organization)
+        membership.roles.add(org_manager_role)
+        # For tests that need permissions on other orgs too (org_manager_user fixture is reused)
         other_org = OrganizationFactory()
-        OrganizationMembershipFactory(user=user, organization=other_org, role=org_manager_role)
+        other_membership = OrganizationMembershipFactory(user=user, organization=other_org)
+        other_membership.roles.add(org_manager_role)
         return user
         
     @pytest.fixture
     def org_viewer_user(self, organization, org_viewer_role):
-        user = UserFactory()
-        OrganizationMembershipFactory(user=user, organization=organization, role=org_viewer_role)
+        user = UserFactory(username='org_viewer_user')
+        membership = OrganizationMembershipFactory(user=user, organization=organization)
+        membership.roles.add(org_viewer_role)
         return user
         
     @pytest.fixture
     def user_no_role_in_org(self, organization): # User is member, but no specific role granting mem perms
-        user = UserFactory()
-        OrganizationMembershipFactory(user=user, organization=organization, role=None)
+        user = UserFactory(username='user_no_role_in_org')
+        OrganizationMembershipFactory(user=user, organization=organization)
         return user
 
     @pytest.fixture
@@ -585,7 +588,9 @@ class TestOrganizationMembershipEndpoints:
     @pytest.fixture
     def membership(self, target_user, organization, target_role):
         # A pre-existing membership for retrieve/update/delete tests
-        return OrganizationMembershipFactory(user=target_user, organization=organization, role=target_role)
+        membership = OrganizationMembershipFactory(user=target_user, organization=organization)
+        membership.roles.add(target_role)
+        return membership
 
     @pytest.fixture
     def list_url(self):
@@ -661,7 +666,7 @@ class TestOrganizationMembershipEndpoints:
         data = {
             'user': target_user.id,
             'organization': organization.id,
-            'role': target_role.id,
+            'roles': [target_role.id],
             'is_active': True
         }
         response = api_client.post(list_url, data, format='json')
@@ -671,7 +676,7 @@ class TestOrganizationMembershipEndpoints:
     def test_create_membership_org_viewer_fail(self, api_client, org_viewer_user, organization, target_user, target_role, list_url):
         """Org Viewer cannot create membership (lacks add perm)."""
         api_client.force_authenticate(user=org_viewer_user)
-        data = {'user': target_user.id, 'organization': organization.id, 'role': target_role.id, 'is_active': True}
+        data = {'user': target_user.id, 'organization': organization.id, 'roles': [target_role.id], 'is_active': True}
         response = api_client.post(list_url, data, format='json')
         assert response.status_code == status.HTTP_403_FORBIDDEN
         
@@ -679,7 +684,7 @@ class TestOrganizationMembershipEndpoints:
         """Org Manager cannot create membership in an org they don't manage."""
         other_org = OrganizationFactory() # Org manager isn't member of
         api_client.force_authenticate(user=org_manager_user)
-        data = {'user': target_user.id, 'organization': other_org.id, 'role': target_role.id, 'is_active': True}
+        data = {'user': target_user.id, 'organization': other_org.id, 'roles': [target_role.id], 'is_active': True}
         response = api_client.post(list_url, data, format='json')
         # Fails at has_perm_in_org check inside perform_create
         assert response.status_code == status.HTTP_403_FORBIDDEN 
@@ -708,12 +713,12 @@ class TestOrganizationMembershipEndpoints:
         """Org Manager can update membership in their org."""
         api_client.force_authenticate(user=org_manager_user)
         new_role = GroupFactory(name="NewRoleForUpdate")
-        data = {'is_active': False, 'role': new_role.id}
+        data = {'is_active': False, 'roles': [new_role.id]}
         response = api_client.patch(detail_url, data, format='json')
         assert response.status_code == status.HTTP_200_OK
         membership.refresh_from_db()
         assert membership.is_active is False
-        assert membership.role == new_role
+        assert new_role in membership.roles.all()
 
     def test_update_membership_org_viewer_fail(self, api_client, org_viewer_user, membership, detail_url):
         """Org Viewer cannot update membership (lacks change perm)."""

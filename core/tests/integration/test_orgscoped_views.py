@@ -145,7 +145,7 @@ class TestOrganizationScopedViewSetMixin:
         test_group.permissions.add(add_perm)
         # Find user_a's membership and assign the group
         membership_a = OrganizationMembership.objects.get(user=user_a, organization=org_a)
-        membership_a.role = test_group # Assign group as role
+        membership_a.roles.add(test_group)  # Add group to roles
         membership_a.save()
         # --- End Permission Grant ---
 

@@ -148,7 +148,7 @@ class Organization(Timestamped, Auditable, MPTTModel):
 
 class OrganizationMembership(Timestamped, Auditable):
     """
-    Model representing a user's membership in an organization with a specific role.
+    Model representing a user's membership in an organization with specific roles.
     """
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -162,12 +162,10 @@ class OrganizationMembership(Timestamped, Auditable):
         related_name='memberships',
         verbose_name=_("Organization")
     )
-    role = models.ForeignKey(
+    roles = models.ManyToManyField(
         Group,
-        on_delete=models.PROTECT,
         related_name='organization_memberships',
-        verbose_name=_("Role (Group)"),
-        null=True,
+        verbose_name=_("Roles (Groups)"),
         blank=True
     )
     is_active = models.BooleanField(
@@ -183,16 +181,15 @@ class OrganizationMembership(Timestamped, Auditable):
         ordering = ['organization__name', 'user__username']
         indexes = [
             models.Index(fields=['user', 'organization']),
-            models.Index(fields=['role']),
             models.Index(fields=['is_active']),
         ]
 
     def __str__(self):
         """Return a string representation of the membership."""
-        role_name = self.role.name if self.role else 'N/A'
+        roles_names = ", ".join([role.name for role in self.roles.all()]) if self.roles.exists() else 'N/A'
         user_name = self.user.username if self.user else 'N/A'
         org_name = self.organization.name if self.organization else 'N/A'
-        return f"{user_name} in {org_name} as {role_name}"
+        return f"{user_name} in {org_name} as {roles_names}"
 
     def clean(self):
         """Validate the membership."""

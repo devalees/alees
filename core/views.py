@@ -92,8 +92,14 @@ class OrganizationScopedViewSetMixin(ViewSetMixin):
         
         # <<< Add more detailed logging before the check >>>
         logger.info(f"[CREATE CHECK] User: '{user}', Target Org: {target_organization.pk} ({target_organization.name}), Required Perm: '{perm_codename}'")
-        user_roles = user.organization_memberships.filter(organization=target_organization).values_list('role__name', flat=True)
-        logger.info(f"[CREATE CHECK] User Roles in Target Org: {list(user_roles)}")
+        
+        # Get user roles using the new ManyToMany relationship
+        membership = user.organization_memberships.filter(organization=target_organization).first()
+        user_roles = []
+        if membership:
+            user_roles = [role.name for role in membership.roles.all()]
+        
+        logger.info(f"[CREATE CHECK] User Roles in Target Org: {user_roles}")
         # <<< End Logging >>>
 
         permission_granted = True # Assume true initially

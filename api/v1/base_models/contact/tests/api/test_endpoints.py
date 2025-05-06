@@ -64,7 +64,8 @@ class TestContactAPI:
         """Test creating a contact with valid nested channel data."""
         # Assign role with add permission
         admin_role = add_perms_to_role("Organization Admin", ["add_contact", "view_contact", "change_contact", "delete_contact"])
-        OrganizationMembershipFactory(user=test_user, organization=test_organization, role=admin_role)
+        membership = OrganizationMembershipFactory(user=test_user, organization=test_organization)
+        membership.roles.add(admin_role)
 
         # Valid nested data (provide full address or existing address_id)
         address_data = {
@@ -107,7 +108,8 @@ class TestContactAPI:
         """Test updating primary flags for nested email/phone/address."""
         # Assign role with change permission
         admin_role = add_perms_to_role("Organization Admin", ["change_contact", "view_contact"])
-        OrganizationMembershipFactory(user=test_user, organization=test_organization, role=admin_role)
+        membership = OrganizationMembershipFactory(user=test_user, organization=test_organization)
+        membership.roles.add(admin_role)
 
         contact = ContactFactory(organization=test_organization)
         email1 = ContactEmailAddressFactory(contact=contact, is_primary=True)
@@ -132,7 +134,8 @@ class TestContactAPI:
         """Test listing contacts with various filters"""
         # Assign role with view permission
         member_role = add_perms_to_role("Member", ["view_contact"])
-        OrganizationMembershipFactory(user=test_user, organization=test_organization, role=member_role)
+        membership = OrganizationMembershipFactory(user=test_user, organization=test_organization)
+        membership.roles.add(member_role)
 
         # Create contacts within the user's org
         ContactFactory(organization=test_organization, first_name="Alice", last_name="Smith")
@@ -150,7 +153,8 @@ class TestContactAPI:
         """Test that the organization is correctly linked and represented."""
         # Assign role with view permission
         member_role = add_perms_to_role("Member", ["view_contact"])
-        OrganizationMembershipFactory(user=test_user, organization=test_organization, role=member_role)
+        membership = OrganizationMembershipFactory(user=test_user, organization=test_organization)
+        membership.roles.add(member_role)
 
         contact = ContactFactory(organization=test_organization)
         url = detail_url_fixture(contact.pk)
@@ -162,7 +166,8 @@ class TestContactAPI:
         """Test various validation errors (requires add perm for the check)"""
         # Assign role with add permission to attempt the POST
         admin_role = add_perms_to_role("Organization Admin", ["add_contact"])
-        OrganizationMembershipFactory(user=test_user, organization=test_organization, role=admin_role)
+        membership = OrganizationMembershipFactory(user=test_user, organization=test_organization)
+        membership.roles.add(admin_role)
         
         invalid_data = {
             'first_name': '',
@@ -175,7 +180,8 @@ class TestContactAPI:
         """Test API permissions (user can't access other orgs due to scoping)"""
         # Need view permission in *some* org for the test to make sense
         member_role = add_perms_to_role("Member", ["view_contact"])
-        OrganizationMembershipFactory(user=test_user, organization=test_organization, role=member_role)
+        membership = OrganizationMembershipFactory(user=test_user, organization=test_organization)
+        membership.roles.add(member_role)
 
         # Create an org and user the test_user doesn't belong to
         other_org = OrganizationFactory()
@@ -190,7 +196,8 @@ class TestContactAPI:
         """Test custom fields and tags functionality"""
         # Assign role with add permission
         admin_role = add_perms_to_role("Organization Admin", ["add_contact"])
-        OrganizationMembershipFactory(user=test_user, organization=test_organization, role=admin_role)
+        membership = OrganizationMembershipFactory(user=test_user, organization=test_organization)
+        membership.roles.add(admin_role)
         
         data = {
             "first_name": "Custom",
@@ -213,7 +220,8 @@ class TestContactAPI:
     def test_filter_contacts_by_single_tag(self, authenticated_client, test_user, test_organization, list_create_url):
         """Test filtering contacts by a single tag PK."""
         view_role = add_perms_to_role("Viewer", ["view_contact"])
-        OrganizationMembershipFactory(user=test_user, organization=test_organization, role=view_role)
+        membership = OrganizationMembershipFactory(user=test_user, organization=test_organization)
+        membership.roles.add(view_role)
 
         # Create tags
         lead_tag = TagFactory(name="lead")
@@ -236,7 +244,8 @@ class TestContactAPI:
     def test_filter_contacts_by_multiple_tags(self, authenticated_client, test_user, test_organization, list_create_url):
         """Test filtering contacts by multiple tag PKs (OR)."""
         view_role = add_perms_to_role("Viewer", ["view_contact"])
-        OrganizationMembershipFactory(user=test_user, organization=test_organization, role=view_role)
+        membership = OrganizationMembershipFactory(user=test_user, organization=test_organization)
+        membership.roles.add(view_role)
 
         # Create tags
         lead_tag = TagFactory(name="lead")
@@ -262,7 +271,8 @@ class TestContactAPI:
     def test_filter_contacts_by_common_tag(self, authenticated_client, test_user, test_organization, list_create_url):
         """Test filtering contacts by a tag PK shared by multiple contacts."""
         view_role = add_perms_to_role("Viewer", ["view_contact"])
-        OrganizationMembershipFactory(user=test_user, organization=test_organization, role=view_role)
+        membership = OrganizationMembershipFactory(user=test_user, organization=test_organization)
+        membership.roles.add(view_role)
 
         # Create tags
         important_tag = TagFactory(name="important")
@@ -288,7 +298,8 @@ class TestContactAPI:
     def test_filter_contacts_by_nonexistent_tag_pk(self, authenticated_client, test_user, test_organization, list_create_url):
         """Test filtering contacts by a tag PK that doesn't exist."""
         view_role = add_perms_to_role("Viewer", ["view_contact"])
-        OrganizationMembershipFactory(user=test_user, organization=test_organization, role=view_role)
+        membership = OrganizationMembershipFactory(user=test_user, organization=test_organization)
+        membership.roles.add(view_role)
 
         # Create a contact with a valid tag
         existing_tag = TagFactory(name="existing_tag")
@@ -310,8 +321,8 @@ class TestContactAPI:
         """Test creating a contact without organization_id for a single-organization user."""
         # Assign role with add permission
         admin_role = add_perms_to_role("Organization Admin", ["add_contact", "view_contact", "change_contact", "delete_contact"])
-        # Create single organization membership for the user
-        OrganizationMembershipFactory(user=test_user, organization=test_organization, role=admin_role)
+        membership = OrganizationMembershipFactory(user=test_user, organization=test_organization)
+        membership.roles.add(admin_role)
         
         # Do not provide organization_id
         data = {
@@ -352,18 +363,18 @@ class TestContactAPI:
         user = UserFactory()
         org1 = OrganizationFactory()
         org2 = OrganizationFactory()
-        OrganizationMembershipFactory(
+        membership = OrganizationMembershipFactory(
             organization=org1,
             user=user,
-            role=role,
             is_active=True
         )
-        OrganizationMembershipFactory(
+        membership.roles.add(role)
+        membership = OrganizationMembershipFactory(
             organization=org2,
             user=user,
-            role=role,
             is_active=True
         )
+        membership.roles.add(role)
 
         # Use api_client directly, not self.client
         api_client = APIClient()

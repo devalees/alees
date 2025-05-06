@@ -70,7 +70,6 @@ class TestUserProfile:
         OrganizationMembership.objects.create(
             user=user,
             organization=organization,
-            role=None,  # Role is optional
             is_active=True
         )
         organizations = user.get_organizations()

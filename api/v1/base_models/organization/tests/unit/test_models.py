@@ -231,12 +231,12 @@ class TestOrganizationMembership:
         with impersonate(user):
             membership = OrganizationMembership.objects.create(
                 user=user,
-                organization=organization_basic,
-                role=role
+                organization=organization_basic
             )
+            membership.roles.add(role)
             assert membership.user == user
             assert membership.organization == organization_basic
-            assert membership.role == role
+            assert membership.roles.first() == role
             assert membership.is_active is True
 
     def test_unique_together_constraint(self, user, organization_basic, role):
@@ -245,17 +245,16 @@ class TestOrganizationMembership:
             # Create first membership
             membership = OrganizationMembership(
                 user=user,
-                organization=organization_basic,
-                role=role
+                organization=organization_basic
             )
             membership.full_clean()
             membership.save()
+            membership.roles.add(role)
 
             # Attempt to create duplicate membership
             duplicate = OrganizationMembership(
                 user=user,
-                organization=organization_basic,
-                role=role
+                organization=organization_basic
             )
             with pytest.raises(ValidationError):
                 duplicate.full_clean()
@@ -265,9 +264,9 @@ class TestOrganizationMembership:
         with impersonate(user):
             membership = OrganizationMembership.objects.create(
                 user=user,
-                organization=organization_basic,
-                role=role
+                organization=organization_basic
             )
+            membership.roles.add(role)
             assert membership.is_active is True
 
     def test_foreign_key_constraints(self, user, organization_basic, role):
@@ -275,21 +274,21 @@ class TestOrganizationMembership:
         with impersonate(user):
             membership = OrganizationMembership.objects.create(
                 user=user,
-                organization=organization_basic,
-                role=role
+                organization=organization_basic
             )
+            membership.roles.add(role)
             assert membership.user.id == user.id
             assert membership.organization.id == organization_basic.id
-            assert membership.role.id == role.id
+            assert membership.roles.first().id == role.id
 
     def test_string_representation(self, user, organization_basic, role):
         """Test the string representation of an OrganizationMembership."""
         with impersonate(user):
             membership = OrganizationMembership.objects.create(
                 user=user,
-                organization=organization_basic,
-                role=role
+                organization=organization_basic
             )
+            membership.roles.add(role)
             expected = f"{user.username} in {organization_basic.name} as {role.name}"
             assert str(membership) == expected
 
@@ -298,9 +297,9 @@ class TestOrganizationMembership:
         with impersonate(user):
             membership = OrganizationMembership.objects.create(
                 user=user,
-                organization=organization_basic,
-                role=role
+                organization=organization_basic
             )
+            membership.roles.add(role)
             assert membership.created_at is not None
             assert membership.updated_at is not None
             assert membership.created_by == user
