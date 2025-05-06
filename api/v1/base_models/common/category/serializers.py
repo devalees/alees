@@ -6,7 +6,12 @@ from .models import Category
 
 
 class CategorySerializer(serializers.ModelSerializer):
-    """Serializer for the Category model."""
+    """
+    Serializer for the Category model.
+    
+    This serializer is for a general-purpose model that is NOT organization-scoped.
+    It does not include or require an organization field.
+    """
 
     # Use SlugRelatedField for parent representation and lookup during create/update
     parent_slug = serializers.SlugRelatedField(

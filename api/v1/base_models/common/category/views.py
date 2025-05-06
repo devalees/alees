@@ -6,15 +6,20 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import Category
 from .serializers import CategorySerializer
-# Import custom permissions if needed
-# from core.rbac.drf_permissions import HasObjectPermission # Example
+# Import DRF's standard permissions since Category is not org-scoped
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
 
 
 class CategoryViewSet(viewsets.ModelViewSet):
-    """ViewSet for managing Categories."""
+    """
+    ViewSet for managing Categories.
+    
+    NOTE: Category is a general-purpose model that is NOT organization-scoped.
+    It uses Django's standard permission system instead of the organization-scoped RBAC.
+    """
     serializer_class = CategorySerializer
-    # Default permission: Allow read for anyone, require auth for write
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    # Use IsAuthenticatedOrReadOnly to allow read access for anyone and write access for authenticated users
+    permission_classes = [IsAuthenticatedOrReadOnly]
     # Default queryset: Show only active categories
     queryset = Category.objects.filter(is_active=True).prefetch_related('children') # Prefetch for efficiency
     lookup_field = 'slug' # Use slug in URL for detail view
