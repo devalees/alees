@@ -3,6 +3,8 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from django.urls import reverse
 from django.utils.http import urlencode
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 
 from api.v1.base_models.common.uom.models import UomType, UnitOfMeasure
 # Use absolute import for factories
@@ -13,10 +15,28 @@ pytestmark = pytest.mark.django_db
 # Define the correct full namespace
 UOM_NAMESPACE = "v1:base_models:common"
 
+User = get_user_model()
+
 @pytest.fixture
-def api_client():
-    # Consider adding authentication if needed for non-read-only endpoints later
-    return APIClient()
+def test_user():
+    """Create a test user with the necessary permissions."""
+    user = User.objects.create_user(
+        username='test_user',
+        email='test@example.com',
+        password='password123'
+    )
+    # Add view permissions for UomType and UnitOfMeasure
+    view_uomtype_perm = Permission.objects.get(codename='view_uomtype')
+    view_uom_perm = Permission.objects.get(codename='view_unitofmeasure')
+    user.user_permissions.add(view_uomtype_perm, view_uom_perm)
+    return user
+
+@pytest.fixture
+def api_client(test_user):
+    """Return an authenticated API client."""
+    client = APIClient()
+    client.force_authenticate(user=test_user)
+    return client
 
 
 # --- UomType API Tests ---

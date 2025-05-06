@@ -1,13 +1,11 @@
 === FOR IMPLEMENTATION ===
 based on project rules and attached implementation steps file do the following:
-### 3.6 API Endpoint Definition (Optional - Read-Only)
+### 3.9 Integrate Mixins/Base Classes
 
-  [ ] **(Test First)** Write API tests for `/api/v1/audit-logs/`. Test permissions (admin/auditor only). Test filtering by user, org, type, date, object. Test pagination.
-  [ ] Define `AuditLogSerializer` (read-only).
-  [ ] Define `AuditLogViewSet` (inheriting `ReadOnlyModelViewSet`). Add necessary filters (`django-filter` recommended here). Secure with appropriate permission class.
-  [ ] Define URL routing.
-  [ ] Run API tests; expect pass.
-      
+[ ] **(Implement)** Identify all ViewSets managing `OrganizationScoped` models. Inherit from `OrganizationScopedViewSetMixin` and ensure `permission_classes` includes `HasModelPermissionInOrg`.
+[ ] **(Implement)** Identify all Serializers for `OrganizationScoped` models. Inherit from `OrganizationScopedSerializerMixin`. Adjust `organization` field definition (e.g., `read_only=True`, `required=False/True`).
+[ ] **(Test)** Rerun API tests for affected ViewSets (CRUD, list).
+
  
 with the following MUST follow rules:
 - MUST follow the attached document literally
@@ -94,11 +92,19 @@ docker-compose up -d postgres redis
 
 
 
-FAILED core/tests/integration/test_orgscoped_views.py::TestOrganizationScopedViewSetMixin::test_user_b_sees_org_b_only - django.db.utils.OperationalError: deadlock detected
+- please read this document    carefully, and summarize what you got in maximum 10 points.@org_aware_rbac_implementation_steps.md 
 
-Results (40.49s):
-     435 passed
-       1 error
-       2 skipped
-ERROR: 1
---------- yesy failing with -n but passed with n-0
+Great!
+this is the rbac system we implemented. please review it before we start the next task! 
+/home/ehab/Desktop/alees/core/rbac
+
+
+Great!
+You got the point the next step is:
+
+### 3.9 Integrate Mixins/Base Classes
+[ ] **(Implement)** Identify all ViewSets managing `OrganizationScoped` models. Inherit from `OrganizationScopedViewSetMixin` and ensure `permission_classes` includes `HasModelPermissionInOrg`.
+[ ] **(Implement)** Identify all Serializers for `OrganizationScoped` models. Inherit from `OrganizationScopedSerializerMixin`. Adjust `organization` field definition (e.g., `read_only=True`, `required=False/True`).
+[ ] **(Test)** Rerun API tests for affected ViewSets (CRUD, list).
+
+

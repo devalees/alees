@@ -103,4 +103,4 @@ class UnitOfMeasure(Timestamped, Auditable):
 
     def __str__(self):
         """Return the human-readable name of the unit."""
-        return self.name 
+        return self.name

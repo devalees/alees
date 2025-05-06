@@ -190,6 +190,47 @@ class HasModelPermissionInOrg(permissions.BasePermission):
          return has_perm
 
 
-# Remove the CanAccessOrganizationObject class entirely
-# class CanAccessOrganizationObject(permissions.BasePermission):
-#     ... 
+class HasGeneralModelPermission(permissions.DjangoModelPermissions):
+    """
+    Permission class for general, non-organization-scoped models.
+    
+    This class uses Django's standard permission system without organization context,
+    making it suitable for models that are not organization-scoped and should be
+    accessible across organizations (e.g., UoM, Currency).
+    
+    This class is a slight extension of DjangoModelPermissions with additional
+    support for view_* permissions and special handling for superusers.
+    """
+    
+    # Add view permission support that may not be in base class
+    perms_map = {
+        'GET': ['%(app_label)s.view_%(model_name)s'],
+        'OPTIONS': [],
+        'HEAD': ['%(app_label)s.view_%(model_name)s'],
+        'POST': ['%(app_label)s.add_%(model_name)s'],
+        'PUT': ['%(app_label)s.change_%(model_name)s'],
+        'PATCH': ['%(app_label)s.change_%(model_name)s'],
+        'DELETE': ['%(app_label)s.delete_%(model_name)s'],
+    }
+    
+    def has_permission(self, request, view):
+        # Superusers bypass all permission checks
+        if request.user and request.user.is_superuser:
+            return True
+            
+        # Fall back to standard DjangoModelPermissions behavior
+        return super().has_permission(request, view)
+        
+    def has_object_permission(self, request, view, obj):
+        # Superusers bypass all permission checks
+        if request.user and request.user.is_superuser:
+            return True
+            
+        # Check if user has appropriate model-level permissions
+        # DjangoModelPermissions doesn't have object-level checks, so we'll add basic support
+        if not self.has_permission(request, view):
+            return False
+            
+        # If user has model-level permissions and we're not checking object-specific permissions,
+        # allow access. For true object-level permissions, subclass should override this method.
+        return True
