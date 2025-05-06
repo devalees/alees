@@ -1,14 +1,28 @@
 import pytest
 import json
+import uuid
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from api.v1.base_models.user.tests.factories import UserFactory
+from django.core.cache import cache
 
 User = get_user_model()
 
 @pytest.mark.django_db
-class TestMyProfileView:
+class TestUserProfileEndpoints:
     """Test cases for MyProfileView API endpoints."""
+
+    @pytest.fixture(autouse=True)
+    def setup_teardown(self):
+        """Setup before and teardown after each test."""
+        # Setup - clear cache and any other state
+        cache.clear()
+        # Delete any test users from previous test runs that might conflict
+        User.objects.filter(username__startswith='test_user_').delete()
+        yield
+        # Teardown - clean up
+        cache.clear()
+        User.objects.filter(username__startswith='test_user_').delete()
 
     @pytest.fixture
     def client(self):
@@ -17,8 +31,8 @@ class TestMyProfileView:
 
     @pytest.fixture
     def user(self):
-        """Create a test user."""
-        return UserFactory()
+        """Create a test user with a unique username to avoid conflicts."""
+        return UserFactory(username=f"test_user_{uuid.uuid4().hex[:8]}")
 
     def test_get_my_profile_unauthenticated(self, client):
         """Test GET /api/v1/user/profiles/me/ without authentication."""
