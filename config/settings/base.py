@@ -47,7 +47,7 @@ LOCAL_APPS = [
     'api.v1.base_models.user.apps.UserConfig',
     'core.audit.apps.AuditConfig', # Added Audit app
     # Add other apps AppConfig paths here...
-    # 'api.v1.features.products.apps.ProductsConfig', # Example
+    'api.v1.features.products.apps.ProductsConfig', # Added Products app
 ]
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
