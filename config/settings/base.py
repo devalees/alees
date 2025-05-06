@@ -48,6 +48,7 @@ LOCAL_APPS = [
     'core.audit.apps.AuditConfig', # Added Audit app
     # Add other apps AppConfig paths here...
     'api.v1.features.products.apps.ProductsConfig', # Added Products app
+    'api.v1.features.documents.apps.DocumentsConfig', # Added Documents app
 ]
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 

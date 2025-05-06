@@ -36,7 +36,7 @@ class FileStorageAdmin(admin.ModelAdmin):
             'fields': ('organization', 'uploaded_by', 'original_filename', 'file')
         }),
         ('Metadata', {
-            'fields': ('mime_type', 'file_size', 'tags', 'metadata', 'custom_fields')
+            'fields': ('mime_type', 'file_size', 'tags', 'custom_fields')
         }),
         ('Audit', {
             'fields': ('id', 'created_at', 'created_by', 'updated_at', 'updated_by'),
@@ -51,4 +51,4 @@ class FileStorageAdmin(admin.ModelAdmin):
         # Prefetch related users and organization for efficiency
         return super().get_queryset(request).select_related(
             'organization', 'uploaded_by', 'created_by', 'updated_by'
-        ).prefetch_related('tags') 
+        ).prefetch_related('tags')
